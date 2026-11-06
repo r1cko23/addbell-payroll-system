@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
@@ -33,6 +34,8 @@ function normalizeBase64(raw: string): string {
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
+    const portal = requirePortalEmployee(employeeId);
+    if (portal instanceof NextResponse) return portal;
     if (!employeeId) {
       return NextResponse.json(
         { error: "employee_id is required" },
@@ -196,6 +199,8 @@ export async function POST(req: NextRequest) {
         file_base64: string;
       } | null;
     };
+    const portal = requirePortalEmployee(body?.employee_id);
+    if (portal instanceof NextResponse) return portal;
 
     if (!body?.employee_id) {
       return NextResponse.json(
@@ -383,6 +388,8 @@ export async function PATCH(req: NextRequest) {
         file_base64: string;
       } | null;
     };
+    const portal = requirePortalEmployee(body?.employee_id);
+    if (portal instanceof NextResponse) return portal;
     if (!body?.request_id || !body?.employee_id) {
       return NextResponse.json(
         { error: "request_id and employee_id are required" },

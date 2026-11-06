@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { buildCutoffAttendance } from "@/lib/ph-payroll";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
@@ -34,6 +35,8 @@ function getDateInManila(iso: string): string {
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
+    const portal = requirePortalEmployee(employeeId);
+    if (portal instanceof NextResponse) return portal;
     const periodStart = req.nextUrl.searchParams.get("period_start");
     const periodEnd = req.nextUrl.searchParams.get("period_end");
 

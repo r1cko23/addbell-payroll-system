@@ -750,11 +750,14 @@ export default function FailureToLogApprovalPage() {
         requestData.actual_clock_out_time = n.clockOutIso;
       }
     }
-    const { error: finalError } = await supabase
+    const { data: changedRows, error: updateError } = await supabase
       .from("failure_to_log")
       .update(patch)
       .eq("id", requestId)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
+    // Zero rows means another approver acted first; do not report success.
+    const finalError = updateError ?? (changedRows?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
 
     if (finalError) {
       console.error("Error approving request:", finalError);
@@ -926,11 +929,14 @@ export default function FailureToLogApprovalPage() {
           updated_at: now,
           rejection_reason: rejectionReason.trim() || "Request rejected",
         };
-    const { error: finalError } = await supabase
+    const { data: changedRows, error: updateError } = await supabase
       .from("failure_to_log")
       .update(patch)
       .eq("id", requestId)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
+    // Zero rows means another approver acted first; do not report success.
+    const finalError = updateError ?? (changedRows?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
 
     if (finalError) {
       console.error("Error rejecting request:", finalError);

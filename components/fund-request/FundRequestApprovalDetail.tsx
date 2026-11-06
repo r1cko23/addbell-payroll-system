@@ -144,6 +144,13 @@ import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { dbPageWrapper, dbFormCard, dbToolbarActions, dbHeaderButton } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 
+const STALE_REQUEST_MESSAGE =
+  "This request changed since you opened it. Reload to see its current step.";
+
+function failMessage(error: { message?: string }, fallback: string) {
+  return error.message === STALE_REQUEST_MESSAGE ? STALE_REQUEST_MESSAGE : fallback;
+}
+
 const STATUS_LABELS = FUND_REQUEST_STATUS_LABELS;
 
 type ProjectInfo = { name: string; code: string; site_address: string | null; contract_value: number | null };
@@ -696,14 +703,22 @@ export function FundRequestApprovalDetail({
     if (!updates) return;
 
     setActing(true);
-    const { error } = await supabase
+    // Only apply if the request is still at the status this approver saw.
+    const { data: changed, error: updateError } = await supabase
       .from("fund_requests")
       .update(updates as never)
-      .eq("id", request.id);
+      .eq("id", request.id)
+      .eq("status", request.status)
+      .select("id");
+    const error =
+      updateError ??
+      (changed?.length
+        ? null
+        : new Error(STALE_REQUEST_MESSAGE));
     setActing(false);
 
     if (error) {
-      toast.error("Failed to approve");
+      toast.error(failMessage(error, "Failed to approve"));
       return;
     }
 
@@ -803,17 +818,26 @@ export function FundRequestApprovalDetail({
           )
         : buildFundRequestRejectUpdates(profile.id, rejectReason, request);
 
-    const { error } = await supabase
+    // Only apply if the request is still at the status this approver saw.
+    const { data: changed, error: updateError } = await supabase
       .from("fund_requests")
       .update(updates as never)
-      .eq("id", request.id);
+      .eq("id", request.id)
+      .eq("status", request.status)
+      .select("id");
+    const error =
+      updateError ??
+      (changed?.length
+        ? null
+        : new Error(STALE_REQUEST_MESSAGE));
     setRejecting(false);
 
     if (error) {
       toast.error(
-        action === "return"
-          ? "Failed to return request to purchasing"
-          : "Failed to reject"
+        failMessage(
+          error,
+          action === "return" ? "Failed to return request to purchasing" : "Failed to reject"
+        )
       );
       return;
     }
@@ -845,14 +869,22 @@ export function FundRequestApprovalDetail({
     }
 
     setUndoing(true);
-    const { error } = await supabase
+    // Only apply if the request is still at the status this approver saw.
+    const { data: changed, error: updateError } = await supabase
       .from("fund_requests")
       .update(updates as never)
-      .eq("id", request.id);
+      .eq("id", request.id)
+      .eq("status", request.status)
+      .select("id");
+    const error =
+      updateError ??
+      (changed?.length
+        ? null
+        : new Error(STALE_REQUEST_MESSAGE));
     setUndoing(false);
 
     if (error) {
-      toast.error("Failed to undo approval.");
+      toast.error(failMessage(error, "Failed to undo approval."));
       return;
     }
 
@@ -874,14 +906,22 @@ export function FundRequestApprovalDetail({
     }
 
     setUndoing(true);
-    const { error } = await supabase
+    // Only apply if the request is still at the status this approver saw.
+    const { data: changed, error: updateError } = await supabase
       .from("fund_requests")
       .update(updates as never)
-      .eq("id", request.id);
+      .eq("id", request.id)
+      .eq("status", request.status)
+      .select("id");
+    const error =
+      updateError ??
+      (changed?.length
+        ? null
+        : new Error(STALE_REQUEST_MESSAGE));
     setUndoing(false);
 
     if (error) {
-      toast.error("Failed to undo rejection.");
+      toast.error(failMessage(error, "Failed to undo rejection."));
       return;
     }
 

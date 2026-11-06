@@ -129,12 +129,18 @@ export async function POST(req: NextRequest) {
 
     const { data: run, error: runErr } = await admin
       .from("payroll_runs")
-      .select("id, cutoff_start, cutoff_end, selected_employee_ids")
+      .select("id, status, cutoff_start, cutoff_end, selected_employee_ids")
       .eq("id", payroll_run_id)
       .single();
     if (runErr) throw runErr;
     if (!run) {
       return NextResponse.json({ error: "Payroll run not found" }, { status: 404 });
+    }
+    if (run.status === "finalized" || run.status === "cancelled") {
+      return NextResponse.json(
+        { error: `This payroll run is ${run.status} and cannot be rebuilt.` },
+        { status: 409 }
+      );
     }
 
     const cutoffStart = String(run.cutoff_start);

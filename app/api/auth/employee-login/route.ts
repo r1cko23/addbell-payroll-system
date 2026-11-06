@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  clearPortalSessionCookie,
+  getPortalEmployeeId,
+  setPortalSessionCookie,
+} from "@/lib/portal-session";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -68,7 +73,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       employee_data: {
         id: employee.id,
@@ -76,9 +81,26 @@ export async function POST(req: NextRequest) {
         full_name: employee.full_name,
       },
     });
+    setPortalSessionCookie(res, employee.id);
+    return res;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
+/** Who is signed into the portal (the layout checks this on load). */
+export async function GET() {
+  const employeeId = getPortalEmployeeId();
+  if (!employeeId) {
+    return NextResponse.json({ success: false }, { status: 401 });
+  }
+  return NextResponse.json({ success: true, employee_id: employeeId });
+}
+
+/** Portal sign-out. */
+export async function DELETE() {
+  const res = NextResponse.json({ success: true });
+  clearPortalSessionCookie(res);
+  return res;
+}

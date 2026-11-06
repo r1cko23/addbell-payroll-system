@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { resolveOpenBundySessionAfterAutoClose } from "@/lib/bundy-auto-clock-out";
 import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
@@ -28,6 +29,8 @@ function getAdminClient() {
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
+    const portal = requirePortalEmployee(employeeId);
+    if (portal instanceof NextResponse) return portal;
     if (!employeeId) {
       return NextResponse.json(
         { error: "employee_id is required" },
@@ -114,6 +117,8 @@ export async function POST(req: NextRequest) {
       in_punch_id?: string;
       out_punch_id?: string;
     };
+    const portal = requirePortalEmployee(body?.employee_id);
+    if (portal instanceof NextResponse) return portal;
     if (!body.employee_id || !body.in_punch_id || !body.out_punch_id) {
       return NextResponse.json(
         { error: "employee_id, in_punch_id, and out_punch_id are required" },

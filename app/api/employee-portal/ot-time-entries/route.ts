@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -25,6 +26,8 @@ type OtPunch = {
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
+    const portal = requirePortalEmployee(employeeId);
+    if (portal instanceof NextResponse) return portal;
     const otRequestId = req.nextUrl.searchParams.get("ot_request_id");
     const includeAllByEmployee =
       req.nextUrl.searchParams.get("all_for_employee") === "true";

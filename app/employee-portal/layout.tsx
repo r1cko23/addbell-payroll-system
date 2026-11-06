@@ -45,13 +45,26 @@ export default function EmployeePortalLayout({
         return;
       }
 
-      setEmployee(parsed);
+      // The server session cookie is what portal APIs trust; sign in again if it is missing or for someone else.
+      fetch("/api/auth/employee-login", { cache: "no-store" })
+        .then(async (res) => {
+          const json = (await res.json().catch(() => ({}))) as { employee_id?: string };
+          if (res.status === 401 || (res.ok && json.employee_id !== parsed.id)) {
+            localStorage.removeItem("employee_session");
+            router.replace("/login?mode=employee&reason=expired");
+            return;
+          }
+          setEmployee(parsed);
+          setLoading(false);
+        })
+        .catch(() => {
+          // Offline or server error: keep the local session; API calls still enforce the cookie.
+          setEmployee(parsed);
+          setLoading(false);
+        });
     } catch {
       localStorage.removeItem("employee_session");
       router.replace("/login?mode=employee");
-      return;
-    } finally {
-      setLoading(false);
     }
   }, [router]);
 
@@ -96,6 +109,7 @@ export default function EmployeePortalLayout({
       inactivityTimer = setTimeout(() => {
         // Session expired due to inactivity
         localStorage.removeItem("employee_session");
+        void fetch("/api/auth/employee-login", { method: "DELETE" }).catch(() => {});
         router.replace("/login?mode=employee&reason=inactivity");
       }, INACTIVITY_TIMEOUT);
     };
@@ -155,6 +169,7 @@ export default function EmployeePortalLayout({
     }
 
     localStorage.removeItem("employee_session");
+    await fetch("/api/auth/employee-login", { method: "DELETE" }).catch(() => {});
     const { invalidateSessionCache } = await import("@/lib/session-cache");
     invalidateSessionCache();
     router.replace("/login?mode=employee");

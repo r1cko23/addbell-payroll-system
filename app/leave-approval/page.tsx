@@ -728,12 +728,13 @@ export default function LeaveApprovalPage() {
       if (notes.trim()) {
         patch.project_manager_notes = notes.trim();
       }
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("leave_requests")
         .update(patch)
         .eq("id", request.id)
-        .eq("status", "pending");
-      finalError = error;
+        .eq("status", "pending")
+        .select("id");
+      finalError = error ?? (data?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
     } else {
       const patch: Record<string, unknown> = {
         status: "approved_by_hr",
@@ -743,12 +744,13 @@ export default function LeaveApprovalPage() {
       if (notes.trim()) {
         patch.hr_notes = notes.trim();
       }
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("leave_requests")
         .update(patch)
         .eq("id", request.id)
-        .eq("status", request.status);
-      finalError = error;
+        .eq("status", request.status)
+        .select("id");
+      finalError = error ?? (data?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
     }
 
     if (finalError) {
@@ -823,7 +825,7 @@ export default function LeaveApprovalPage() {
     const employeeName = request?.employees?.full_name || "Employee";
 
     const now = new Date().toISOString();
-    const { error: finalError } = await supabase
+    const { data: changedRows, error: updateError } = await supabase
       .from("leave_requests")
       .update({
         status: "rejected",
@@ -831,7 +833,11 @@ export default function LeaveApprovalPage() {
         rejected_by: user.id,
         rejected_at: now,
       })
-      .eq("id", requestId);
+      .eq("id", requestId)
+      .eq("status", request?.status ?? "pending")
+      .select("id");
+    // Zero rows means another approver acted first; do not report success.
+    const finalError = updateError ?? (changedRows?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
 
     if (finalError) {
       console.error("Error rejecting request:", finalError);

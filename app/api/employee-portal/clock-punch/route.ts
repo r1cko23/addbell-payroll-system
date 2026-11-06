@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { resolveOpenBundySessionAfterAutoClose } from "@/lib/bundy-auto-clock-out";
 import type { TimeEntrySession } from "@/lib/timeEntries";
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
       lng?: number;
       device_info?: string | null;
     };
+    const portal = requirePortalEmployee(body?.employee_id);
+    if (portal instanceof NextResponse) return portal;
 
     if (!body?.employee_id || !body?.punch_type) {
       return NextResponse.json(
@@ -44,7 +47,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (typeof body.lat !== "number" || typeof body.lng !== "number") {
+      return NextResponse.json(
+        { error: "Location is required to clock in or out. Turn on location and try again." },
+        { status: 400 }
+      );
+    }
+
     const admin = getAdminClient();
+
+    // Same rule the Bundy page checks, enforced here so it cannot be skipped.
+    const { data: locationCheck, error: locationCheckError } = await admin.rpc(
+      "is_employee_location_allowed",
+      { p_employee_uuid: portal.employeeId, p_latitude: body.lat, p_longitude: body.lng } as any
+    );
+    if (locationCheckError) {
+      return NextResponse.json({ error: "Could not check your location. Try again." }, { status: 500 });
+    }
+    if (!(locationCheck as Array<{ is_allowed: boolean }> | null)?.[0]?.is_allowed) {
+      return NextResponse.json(
+        { error: "You are not at an allowed clock-in location." },
+        { status: 403 }
+      );
+    }
 
     let autoClosed = false;
     let open: TimeEntrySession | null = null;

@@ -635,13 +635,19 @@ export function FundRequestInbox({
     }
 
     setActingId(id);
-    const { error } = await supabase
+    // Only apply if the request is still at the stage this approver saw.
+    const { data: changed, error } = await supabase
       .from("fund_requests")
       .update(updates as never)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", currentStatus)
+      .select("id");
     setActingId(null);
     if (error) {
       toast.error("Failed to approve");
+    } else if (!changed?.length) {
+      toast.error("This request changed since you opened it. The list has been refreshed.");
+      await refreshInbox({ force: true });
     } else {
       toast.success(successMessage);
       await refreshInbox({ force: true });
@@ -665,10 +671,12 @@ export function FundRequestInbox({
             updated_at: timestamp,
           } as never)
           .eq("id", request.id)
+          .eq("status", request.status)
+          .select("id")
       )
     );
 
-    const failed = results.filter((result) => result.error).length;
+    const failed = results.filter((result) => result.error || !result.data?.length).length;
     setBulkApproving(false);
 
     if (failed === requests.length) {
@@ -750,10 +758,13 @@ export function FundRequestInbox({
           );
 
     setActingId(id);
-    const { error } = await supabase
+    const { data: changed, error: updateError } = await supabase
       .from("fund_requests")
       .update(updates as never)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", currentStatus)
+      .select("id");
+    const error = updateError ?? (changed?.length ? null : new Error("This request changed since you opened it. The list has been refreshed."));
     setActingId(null);
     setPendingDisposal(null);
     setRejectReason("");

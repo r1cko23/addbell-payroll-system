@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { creditOvertimeHours } from "@/utils/overtime";
 export { dynamic } from "@/lib/api-route-segment";
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest) {
       lng?: number;
       device_info?: string | null;
     };
+    const portal = requirePortalEmployee(body?.employee_id);
+    if (portal instanceof NextResponse) return portal;
 
     if (
       !body?.employee_id ||

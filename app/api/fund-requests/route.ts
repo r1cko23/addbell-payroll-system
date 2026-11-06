@@ -13,7 +13,11 @@ import {
   parseSupplierBankDetails,
   validateFundRequestBankDetails,
 } from "@/lib/fund-request-bank-details";
-import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
+import {
+  assertRequesterCanManageFundRequest,
+  getAdminClient,
+  portalRequesterError,
+} from "@/lib/fund-request-api";
 import { normalizeUserRole } from "@/lib/user-roles";
 import { isSubcontractorPaymentPurpose } from "@/types/fund-request";
 import { validateSubcontractorPoAmountInput } from "@/lib/fund-request-subcontractor-po-amount";
@@ -289,6 +293,10 @@ export async function POST(req: NextRequest) {
     const {
       data: { user: authUser },
     } = await cookieSupabase.auth.getUser();
+    const portalError = portalRequesterError(authUser?.id ?? null, body.requested_by);
+    if (portalError) {
+      return NextResponse.json({ error: portalError.error }, { status: portalError.status });
+    }
     let submitterRole: string | null = null;
     if (authUser?.id) {
       const { data: submitterProfile } = await admin
@@ -467,6 +475,27 @@ export async function DELETE(req: NextRequest) {
     }
 
     const admin = getAdminClient();
+    const {
+      data: { user: authUser },
+    } = await createServerComponentClient<Database>({ cookies }).auth.getUser();
+    const portalError = portalRequesterError(authUser?.id ?? null, body.requested_by);
+    if (portalError) {
+      return NextResponse.json({ error: portalError.error }, { status: portalError.status });
+    }
+    if (authUser?.id) {
+      const { data: requester } = await admin
+        .from("employees")
+        .select("user_id")
+        .eq("id", body.requested_by.trim())
+        .maybeSingle();
+      if (requester?.user_id !== authUser.id) {
+        return NextResponse.json(
+          { error: "You can only delete your own fund requests." },
+          { status: 403 }
+        );
+      }
+    }
+
     const { data, error } = await admin
       .from("fund_requests")
       .delete()

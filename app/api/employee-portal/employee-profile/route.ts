@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { resolveEmployeePosition } from "@/lib/payslip-display";
 import { CACHE_TTL, cachedJson } from "@/lib/cache";
@@ -22,6 +23,8 @@ function getAdminClient() {
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
+    const portal = requirePortalEmployee(employeeId);
+    if (portal instanceof NextResponse) return portal;
     if (!employeeId) {
       return NextResponse.json(
         { error: "employee_id is required" },

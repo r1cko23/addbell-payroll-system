@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
@@ -97,6 +98,8 @@ function getAdminClient() {
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
+    const portal = requirePortalEmployee(employeeId);
+    if (portal instanceof NextResponse) return portal;
     if (!employeeId) {
       return NextResponse.json(
         { error: "employee_id is required" },
@@ -195,6 +198,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as CreateLeavePayload;
+    const portal = requirePortalEmployee(body?.employee_id);
+    if (portal instanceof NextResponse) return portal;
     if (
       !body?.employee_id ||
       !body?.leave_type ||
@@ -309,6 +314,8 @@ export async function PATCH(req: NextRequest) {
       request_id: string;
       employee_id: string;
     };
+    const portal = requirePortalEmployee(body?.employee_id);
+    if (portal instanceof NextResponse) return portal;
     if (!body?.request_id || !body?.employee_id) {
       return NextResponse.json(
         { error: "request_id and employee_id are required" },

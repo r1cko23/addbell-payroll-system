@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { CACHE_TTL, cachedJson } from "@/lib/cache";
-import { verifyAdminAccess } from "@/lib/api-helpers";
+import { getCurrentUserRole } from "@/lib/api-helpers";
+import { normalizeUserRole } from "@/lib/user-roles";
 import { loadAdminDashboardPayload } from "@/lib/fetch-admin-dashboard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const auth = await verifyAdminAccess();
-  if (!auth) {
+  // The executive dashboard is the landing page for both admin and upper management.
+  const role = normalizeUserRole(await getCurrentUserRole());
+  if (role !== "admin" && role !== "upper_management") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

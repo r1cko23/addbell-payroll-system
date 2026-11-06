@@ -86,6 +86,7 @@ export default function AdminDashboard() {
   const { profile } = useProfile();
   const {
     data,
+    error,
     loading,
     validating,
     refresh,
@@ -118,6 +119,19 @@ export default function AdminDashboard() {
     return (
       <div className="flex items-center justify-center h-64">
         <Icon name="ArrowsClockwise" size={IconSizes.lg} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    // Never show zeros for a failed load: zeros read as "nothing pending".
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+        <p className="font-medium">The dashboard could not load.</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => void fetchDashboard(true)}>
+          Try again
+        </Button>
       </div>
     );
   }

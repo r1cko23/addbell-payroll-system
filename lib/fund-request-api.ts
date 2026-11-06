@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getPortalEmployeeId } from "@/lib/portal-session";
 import {
   canRequesterAddDocumentToFundRequest,
   canRequesterEditFundRequest,
@@ -14,6 +15,20 @@ export function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+/**
+ * Portal callers have no Supabase user, so they must hold a portal session for
+ * the employee they act as. Staff callers are checked against employees.user_id below.
+ */
+export function portalRequesterError(authUserId: string | null, requesterEmployeeId: string) {
+  if (authUserId) return null;
+  const portalEmployeeId = getPortalEmployeeId();
+  if (!portalEmployeeId) return { error: "Not authenticated", status: 401 as const };
+  if (portalEmployeeId !== requesterEmployeeId.trim()) {
+    return { error: "Request not found", status: 404 as const };
+  }
+  return null;
+}
+
 /** Edit, delete, and add documents while the next approver has not acted yet. */
 export async function assertRequesterCanManageFundRequest(
   admin: ReturnType<typeof getAdminClient>,
@@ -21,6 +36,9 @@ export async function assertRequesterCanManageFundRequest(
   requestId: string,
   requesterEmployeeId: string
 ) {
+  const portalError = portalRequesterError(authUserId, requesterEmployeeId);
+  if (portalError) return portalError;
+
   const { data: existing, error: loadError } = await admin
     .from("fund_requests")
     .select(
@@ -94,6 +112,9 @@ export async function assertRequesterCanAddDocumentToFundRequest(
   requestId: string,
   requesterEmployeeId: string
 ) {
+  const portalError = portalRequesterError(authUserId, requesterEmployeeId);
+  if (portalError) return portalError;
+
   const { data: existing, error: loadError } = await admin
     .from("fund_requests")
     .select(
@@ -244,6 +265,8 @@ export async function assertCanViewFundRequestDocument(
   }
 
   if (requestedBy?.trim()) {
+    const portalError = portalRequesterError(authUserId, requestedBy);
+    if (portalError) return portalError;
     if (document.employee_id !== requestedBy.trim()) {
       return { error: "Document not found", status: 404 as const };
     }

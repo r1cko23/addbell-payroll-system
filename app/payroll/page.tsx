@@ -192,6 +192,7 @@ export default function PayrollPage() {
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [payrollValidation, setPayrollValidation] =
     useState<PayrollEntrySummary | null>(null);
   const [loadingValidation, setLoadingValidation] = useState(false);
@@ -543,6 +544,7 @@ export default function PayrollPage() {
 
   async function loadPayrollValidation(run: PayrollRun) {
     setLoadingValidation(true);
+    setValidationError(null);
     try {
       const res = await fetch(
         `/api/payroll-runs/validate?payroll_run_id=${run.id}`
@@ -550,8 +552,9 @@ export default function PayrollPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to load validation");
       setPayrollValidation(json as PayrollEntrySummary);
-    } catch {
+    } catch (error: any) {
       setPayrollValidation(null);
+      setValidationError(error?.message || "Failed to load validation");
     } finally {
       setLoadingValidation(false);
     }
@@ -580,7 +583,17 @@ export default function PayrollPage() {
   async function generatePayslips(options?: { skipWarningsConfirm?: boolean }) {
     if (!selectedRun) return;
 
-    if (payrollValidation && payrollValidation.blocked > 0) {
+    // Never build without the checks: a failed load used to skip every block and warning.
+    if (!payrollValidation) {
+      toast.error(
+        validationError
+          ? `Payroll checks did not load (${validationError}). Reload checks before building.`
+          : "Payroll checks are still loading. Try again in a moment."
+      );
+      return;
+    }
+
+    if (payrollValidation.blocked > 0) {
       toast.error(
         `${payrollValidation.blocked} employee(s) blocked. Fix issues or export blocked list.`
       );
@@ -638,7 +651,15 @@ export default function PayrollPage() {
     try {
       const { error } = await supabase.from("payroll_runs").update({ status: "finalized" } as never).eq("id", selectedRun.id);
       if (error) throw error;
-      toast.success("Payroll run finalized.");
+      const { error: slipError } = await supabase
+        .from("payslips")
+        .update({ status: "paid" } as never)
+        .eq("payroll_run_id", selectedRun.id);
+      if (slipError) {
+        toast.error(`Run finalized, but payslips were not marked paid: ${slipError.message}`);
+      } else {
+        toast.success("Payroll run finalized.");
+      }
       setSelectedRun({ ...selectedRun, status: "finalized" });
       await reloadPayrollRuns();
     } catch (error: any) {
@@ -930,7 +951,22 @@ export default function PayrollPage() {
             <TabsContent value="register" id="payroll-register" className="space-y-4">
           {(selectedRun.status === "draft" || selectedRun.status === "processing") && (
             <HStack justify="end">
-              <Button onClick={() => generatePayslips()} disabled={processing}>
+              {validationError && (
+                <span className="text-sm text-destructive">
+                  Payroll checks did not load: {validationError}{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => void loadPayrollValidation(selectedRun)}
+                  >
+                    Reload checks
+                  </button>
+                </span>
+              )}
+              <Button
+                onClick={() => generatePayslips()}
+                disabled={processing || loadingValidation || !payrollValidation}
+              >
                 <Icon
                   name="ArrowsClockwise"
                   size={IconSizes.sm}

@@ -9,6 +9,8 @@
  * - Alphalist of Employees (AOE) - Per Employee Breakdown
  */
 
+import { toast } from "sonner";
+import { COMPANY_ADDRESS, COMPANY_LEGAL_NAME } from "@/lib/company";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -111,6 +113,7 @@ export default function BIRReportsPage() {
           thirteenth_month_pay,
           period_start,
           period_end,
+          payroll_runs!inner(status),
           employees(
             employee_id,
             full_name,
@@ -126,7 +129,8 @@ export default function BIRReportsPage() {
         )
         .gte("period_start", yearStart.toISOString().split("T")[0])
         .lte("period_end", yearEnd.toISOString().split("T")[0])
-        .eq("status", "paid"); // Only include paid payslips
+        // Payslips count once their payroll run is finalized.
+        .eq("payroll_runs.status", "finalized");
 
       if (payslipsError) {
         throw payslipsError;
@@ -217,6 +221,9 @@ export default function BIRReportsPage() {
       setSummary(summaryData);
     } catch (error) {
       console.error("Error fetching BIR data:", error);
+      toast.error(
+        `Could not load BIR data: ${error instanceof Error ? error.message : "unknown error"}`
+      );
     } finally {
       setLoading(false);
     }
@@ -226,9 +233,8 @@ export default function BIRReportsPage() {
     // Create workbook
     const wb = XLSX.utils.book_new();
 
-    // Employer Information (from Privacy Notice)
-    const employerName = "Green Pasture People Management Inc.";
-    const employerAddress = "31st Floor, Unit 3101, AIC, Burgundy Empire Tower, ADB Ave, Ortigas Center, Pasig";
+    const employerName = COMPANY_LEGAL_NAME;
+    const employerAddress = COMPANY_ADDRESS;
     const periodCovered = `January 1 - December 31, ${year}`;
 
     // Create worksheet data
@@ -326,8 +332,8 @@ export default function BIRReportsPage() {
     const wb = XLSX.utils.book_new();
 
     // Employer Information
-    const employerName = "Green Pasture People Management Inc.";
-    const employerAddress = "31st Floor, Unit 3101, AIC, Burgundy Empire Tower, ADB Ave, Ortigas Center, Pasig";
+    const employerName = COMPANY_LEGAL_NAME;
+    const employerAddress = COMPANY_ADDRESS;
     const periodCovered = `January 1 - December 31, ${year}`;
 
     // Create worksheet data
@@ -708,8 +714,8 @@ export default function BIRReportsPage() {
           <Card>
             <CardContent className="p-8 text-center">
               <BodySmall className="text-muted-foreground">
-                No payslip data found for {year}. Please ensure payslips are marked as "paid" for
-                them to appear in BIR reports.
+                No finalized payroll runs in {year}. Payslips appear here once their cutoff is
+                finalized on the Payroll page.
               </BodySmall>
             </CardContent>
           </Card>

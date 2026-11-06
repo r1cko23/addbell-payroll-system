@@ -872,11 +872,14 @@ export default function OvertimeApprovalPage() {
           approved_at: now,
           updated_at: now,
         };
-    const { error: finalError } = await supabase
+    const { data: changedRows, error: updateError } = await supabase
       .from("overtime_requests")
       .update(patch)
       .eq("id", id)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
+    // Zero rows means another approver acted first; do not report success.
+    const finalError = updateError ?? (changedRows?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
 
     if (finalError) {
       toast.error("Failed to approve overtime request", {
@@ -954,11 +957,14 @@ export default function OvertimeApprovalPage() {
           approved_at: now,
           updated_at: now,
         };
-    const { error: finalError } = await supabase
+    const { data: changedRows, error: updateError } = await supabase
       .from("overtime_requests")
       .update(patch)
       .eq("id", id)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
+    // Zero rows means another approver acted first; do not report success.
+    const finalError = updateError ?? (changedRows?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
 
     if (finalError) {
       toast.error("Failed to reject overtime request", {

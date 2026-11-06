@@ -53,6 +53,13 @@ export function sumRegularDayHours(
   }, 0);
 }
 
+/** Payroll "no. of days": regular-day hours in 8-hour day equivalents (rate/hr = rate/day ÷ 8). */
+export function regularDaysWorked(
+  attendanceData: Array<{ dayType?: string; regularHours?: number }>
+): number {
+  return sumRegularDayHours(attendanceData) / 8;
+}
+
 export function sumAttendanceRegularHours(
   attendanceData: Array<{ regularHours?: number }>
 ): number {

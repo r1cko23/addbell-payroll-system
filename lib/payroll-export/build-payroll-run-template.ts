@@ -13,6 +13,7 @@ import {
   type CutoffAllowanceRow,
 } from "@/lib/payslip-allowances";
 import { computePayslipNetPay } from "@/lib/payslip-net";
+import { regularDaysWorked } from "@/lib/ph-payroll/attendance-cutoff";
 import {
   calculateDailyPay,
   type DayType,
@@ -155,7 +156,7 @@ function aggregateHolidayAndOtFromAttendance(
           ? regularHours
           : unworkedHolidayCreditHours(dayType);
         totals.regHolHours += paidH;
-        totals.regHolPay += calc.regularPay;
+        totals.regHolPay += calculateDailyPay(dayType, paidH, 0, 0, perHour).regularPay;
       }
       if (overtimeHours > 0) {
         totals.regHolPay += calc.overtimePay;
@@ -178,7 +179,7 @@ function aggregateHolidayAndOtFromAttendance(
           ? regularHours
           : unworkedHolidayCreditHours(dayType);
         totals.nwhHours += paidH;
-        totals.nwhPay += calc.regularPay;
+        totals.nwhPay += calculateDailyPay(dayType, paidH, 0, 0, perHour).regularPay;
       }
       if (overtimeHours > 0) {
         totals.nwhPay += calc.overtimePay;
@@ -187,8 +188,8 @@ function aggregateHolidayAndOtFromAttendance(
     }
 
     if (dayType === "sunday") {
-      totals.restOtHours += overtimeHours;
-      totals.restOtPay += calc.overtimePay;
+      totals.restOtHours += regularHours + overtimeHours;
+      totals.restOtPay += calc.regularPay + calc.overtimePay;
     }
   });
 
@@ -345,11 +346,8 @@ export function buildPayrollRunTemplateTable(params: {
         ? buildStoredEarningsBreakdown(attendance, perHour).payroll_result
         : null);
 
-    const totalRegularHours = Array.isArray(attendance)
-      ? attendance.reduce((s, d) => s + safeNumber(d?.regularHours), 0)
-      : 0;
     const { perDay } = ratePerDayAndHourFromEmployee(emp);
-    const daysWorked = totalRegularHours > 0 ? totalRegularHours / 8 : 0;
+    const daysWorked = regularDaysWorked(attendance);
 
     const holidayOt = aggregateHolidayAndOtFromAttendance(attendance, perHour);
     const totalOvertimeHours = holidayOt.regOtHours;
@@ -359,9 +357,8 @@ export function buildPayrollRunTemplateTable(params: {
 
     const otPay = holidayOt.regOtPay || safeNumber(payrollResult?.totals?.overtimePay);
     const ndPay = safeNumber(payrollResult?.totals?.nightDiffPay);
-    const regularPay =
-      safeNumber(payrollResult?.totals?.regularPay) ||
-      (perHour > 0 ? regularHoursBasicGross(attendance, perHour) : 0);
+    // Regular days only: holiday and rest-day pay have their own columns.
+    const regularPay = perHour > 0 ? regularHoursBasicGross(attendance, perHour) : 0;
 
     const gross = safeNumber(ps.gross_pay);
     const ded = ps.deductions_breakdown || {};
@@ -407,7 +404,7 @@ export function buildPayrollRunTemplateTable(params: {
     row[3] = fullName || "—";
     row[4] = perDay;
     row[5] = daysWorked;
-    row[6] = regularPay > 0 ? regularPay : perDay > 0 ? perDay * daysWorked : gross;
+    row[6] = regularPay > 0 ? regularPay : attendance.length > 0 ? 0 : gross;
     row[7] = perHour;
     row[8] = totalOvertimeHours > 0 ? totalOvertimeHours : "";
     row[9] = holidayOt.restOtHours > 0 ? holidayOt.restOtHours : "";

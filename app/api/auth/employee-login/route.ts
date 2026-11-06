@@ -39,35 +39,25 @@ export async function POST(req: NextRequest) {
 
     const admin = getAdminClient();
 
-    // Validate portal credentials server-side to avoid RLS/login RPC issues.
-    const selectBase = () =>
-      admin
-        .from("employees")
-        .select("id, employee_id, full_name");
-
-    const tryFind = async (column: "employee_id" | "company_id_no" | "employee_code") => {
-      const { data, error } = await selectBase()
-        .eq("is_active", true)
-        .eq("portal_password", password)
-        .eq(column, loginId)
-        .maybeSingle();
-
-      if (error) {
-        // Some columns may not exist in older schema versions; treat missing-column
-        // as "not found" rather than failing login completely.
-        const msg = error.message || "";
-        const columnMissing = msg.includes("column") && (msg.includes("does not exist") || msg.includes("not exist"));
-        if (columnMissing) return { employee: null as any, error: null as any };
-        throw error;
-      }
-      return { employee: data, error: null as any };
-    };
+    // Passwords are checked inside the database (bcrypt, with plain-text fallback until
+    // every stored password is hashed). Identifier order: employee_id, company_id_no,
+    // employee_code (ZKTeco pin).
+    const { data: matchedId, error: matchError } = await admin.rpc("portal_login_employee_id", {
+      p_login_id: loginId,
+      p_password: password,
+    } as never);
+    if (matchError) throw matchError;
 
     let employee: { id: string; employee_id: string; full_name: string } | null = null;
-    // Try the three most likely identifiers in order.
-    employee = (await tryFind("employee_id")).employee || null;
-    if (!employee) employee = (await tryFind("company_id_no")).employee || null;
-    if (!employee) employee = (await tryFind("employee_code")).employee || null;
+    if (matchedId) {
+      const { data, error } = await admin
+        .from("employees")
+        .select("id, employee_id, full_name")
+        .eq("id", matchedId as unknown as string)
+        .maybeSingle();
+      if (error) throw error;
+      employee = data;
+    }
 
     if (!employee) {
       return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });

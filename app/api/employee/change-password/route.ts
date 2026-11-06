@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const { data: employeeRow, error: employeeError } = await supabase
       .from("employees")
-      .select("id, portal_password")
+      .select("id")
       .eq("id", employee_id)
       .maybeSingle();
 
@@ -62,7 +62,15 @@ export async function POST(request: NextRequest) {
       return unauthorizedResponse("Employee not found");
     }
 
-    if ((employeeRow as { portal_password?: string | null }).portal_password !== current_password.trim()) {
+    const { data: currentMatches, error: verifyError } = await supabase.rpc(
+      "portal_verify_password",
+      { p_employee_id: employee_id, p_password: current_password.trim() } as never
+    );
+    if (verifyError) {
+      console.error("Error verifying employee password:", verifyError);
+      return errorResponse("Failed to verify employee password");
+    }
+    if (!currentMatches) {
       return unauthorizedResponse("Current password is incorrect");
     }
 

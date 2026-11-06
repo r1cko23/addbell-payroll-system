@@ -1,6 +1,6 @@
 # Rest day and holiday worked only through an OT request (2026-11-06)
 
-**Status: dry run only. Nothing has been written to production.** The user approves the write separately and runs the SQL in the Supabase SQL Editor.
+**Status: APPLIED on 2026-11-06** after the user approved it ("Run it now"). The SQL below ran as one transaction. Checks afterwards on all 8 payslips: gross equals the calculator total; net = gross + adjustment + allowance − deductions; deductions and attendance hours unchanged. The original rows are in `backups.payslips_ot_only_20261106`, and the API roles have no access to that table.
 
 ## Problem
 

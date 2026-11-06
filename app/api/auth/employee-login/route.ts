@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   clearPortalSessionCookie,
-  getPortalEmployeeId,
+  getPortalSession,
+  isDefaultPortalPassword,
   setPortalSessionCookie,
 } from "@/lib/portal-session";
 
@@ -48,11 +49,17 @@ export async function POST(req: NextRequest) {
     } as never);
     if (matchError) throw matchError;
 
-    let employee: { id: string; employee_id: string; full_name: string } | null = null;
+    let employee: {
+      id: string;
+      employee_id: string;
+      full_name: string;
+      company_id_no: string | null;
+      employee_code: string | null;
+    } | null = null;
     if (matchedId) {
       const { data, error } = await admin
         .from("employees")
-        .select("id, employee_id, full_name")
+        .select("id, employee_id, full_name, company_id_no, employee_code")
         .eq("id", matchedId as unknown as string)
         .maybeSingle();
       if (error) throw error;
@@ -63,15 +70,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });
     }
 
+    // HR's default password is the employee's own ID; make them pick a real one first.
+    const mustChangePassword = isDefaultPortalPassword(password, [
+      employee.employee_id,
+      employee.company_id_no,
+      employee.employee_code,
+    ]);
+
     const res = NextResponse.json({
       success: true,
+      must_change_password: mustChangePassword,
       employee_data: {
         id: employee.id,
         employee_id: employee.employee_id,
         full_name: employee.full_name,
       },
     });
-    setPortalSessionCookie(res, employee.id);
+    setPortalSessionCookie(res, employee.id, { mustChangePassword });
     return res;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal server error";
@@ -81,11 +96,15 @@ export async function POST(req: NextRequest) {
 
 /** Who is signed into the portal (the layout checks this on load). */
 export async function GET() {
-  const employeeId = getPortalEmployeeId();
-  if (!employeeId) {
+  const session = getPortalSession();
+  if (!session) {
     return NextResponse.json({ success: false }, { status: 401 });
   }
-  return NextResponse.json({ success: true, employee_id: employeeId });
+  return NextResponse.json({
+    success: true,
+    employee_id: session.employeeId,
+    must_change_password: session.mustChangePassword,
+  });
 }
 
 /** Portal sign-out. */

@@ -12,6 +12,7 @@ import { EmployeePortalSidebar } from "@/components/EmployeePortalSidebar";
 import { EmployeePortalMobileNav } from "@/components/EmployeePortalMobileNav";
 import { EmployeePortalHeader } from "@/components/employee-portal/EmployeePortalHeader";
 import { formatProfileDisplayName } from "@/lib/format-profile-display-name";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 
 export default function EmployeePortalLayout({
   children,
@@ -23,6 +24,8 @@ export default function EmployeePortalLayout({
   const supabase = createClient();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
   const [loading, setLoading] = useState(true);
+  // Signed in with a default password: only the change-password screen is shown.
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
     null
@@ -48,12 +51,16 @@ export default function EmployeePortalLayout({
       // The server session cookie is what portal APIs trust; sign in again if it is missing or for someone else.
       fetch("/api/auth/employee-login", { cache: "no-store" })
         .then(async (res) => {
-          const json = (await res.json().catch(() => ({}))) as { employee_id?: string };
+          const json = (await res.json().catch(() => ({}))) as {
+            employee_id?: string;
+            must_change_password?: boolean;
+          };
           if (res.status === 401 || (res.ok && json.employee_id !== parsed.id)) {
             localStorage.removeItem("employee_session");
             router.replace("/login?mode=employee&reason=expired");
             return;
           }
+          setMustChangePassword(!!json.must_change_password);
           setEmployee(parsed);
           setLoading(false);
         })
@@ -182,6 +189,20 @@ export default function EmployeePortalLayout({
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/30">
         <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (mustChangePassword) {
+    // Portal APIs refuse a default-password session, so show nothing else until it changes.
+    return (
+      <div className="min-h-screen bg-muted/30">
+        <Toaster position="top-center" richColors />
+        <ChangePasswordDialog
+          employeeId={employee.id}
+          forced
+          onChanged={() => setMustChangePassword(false)}
+        />
       </div>
     );
   }

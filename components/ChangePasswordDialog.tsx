@@ -28,6 +28,12 @@ type ChangePasswordDialogProps = {
   className?: string;
   /** Hide button label below this Tailwind breakpoint (md = employee portal mobile). */
   compactBelow?: "sm" | "md";
+  /**
+   * Employee signed in with a default password: the dialog stays open, cannot be
+   * dismissed, and onChanged runs after the new password is saved.
+   */
+  forced?: boolean;
+  onChanged?: () => void;
 };
 
 export function ChangePasswordDialog({
@@ -35,6 +41,8 @@ export function ChangePasswordDialog({
   variant = "employee",
   className,
   compactBelow = "sm",
+  forced = false,
+  onChanged,
 }: ChangePasswordDialogProps) {
   const compactClass =
     compactBelow === "md"
@@ -42,7 +50,7 @@ export function ChangePasswordDialog({
       : "h-11 w-11 min-h-11 px-0 sm:h-11 sm:min-h-11 sm:w-auto sm:px-3";
   const labelHiddenClass =
     compactBelow === "md" ? "hidden md:inline" : "hidden sm:inline";
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(forced);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -57,6 +65,7 @@ export function ChangePasswordDialog({
   }
 
   function handleOpenChange(next: boolean) {
+    if (forced && !next) return;
     setOpen(next);
     if (!next) resetForm();
   }
@@ -125,8 +134,13 @@ export function ChangePasswordDialog({
         throw new Error(data.error || "Failed to update password");
       }
 
-      toast.success("Password updated successfully!");
-      handleOpenChange(false);
+      toast.success("Password updated");
+      if (forced) {
+        resetForm();
+        onChanged?.();
+      } else {
+        handleOpenChange(false);
+      }
     } catch (error: unknown) {
       const message =
         error instanceof Error
@@ -140,6 +154,7 @@ export function ChangePasswordDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
+      {forced ? null : (
       <DialogTrigger asChild>
         <Button
           variant="outline"
@@ -155,11 +170,23 @@ export function ChangePasswordDialog({
           <span className={labelHiddenClass}>Change password</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className={epDialogContentForm}>
+      )}
+      <DialogContent
+        className={epDialogContentForm}
+        hideCloseButton={forced}
+        onEscapeKeyDown={forced ? (e) => e.preventDefault() : undefined}
+        onPointerDownOutside={forced ? (e) => e.preventDefault() : undefined}
+      >
         <DialogHeader className="space-y-1 pr-10 text-left">
           <DialogTitle className="text-base leading-snug sm:text-lg">
-            Change password
+            {forced ? "Set a new password" : "Change password"}
           </DialogTitle>
+          {forced ? (
+            <BodySmall className="text-muted-foreground">
+              You signed in with your default password. Choose your own password to
+              keep using the portal.
+            </BodySmall>
+          ) : null}
         </DialogHeader>
         <form onSubmit={handlePasswordChange} className="space-y-3 sm:space-y-4">
           <div className="space-y-1.5 sm:space-y-2">
@@ -224,15 +251,17 @@ export function ChangePasswordDialog({
             </div>
           ) : null}
           <div className={epFormActions}>
-            <Button
-              type="button"
-              variant="outline"
-              className={epFormActionButton}
-              onClick={() => handleOpenChange(false)}
-              disabled={isChangingPassword}
-            >
-              Cancel
-            </Button>
+            {forced ? null : (
+              <Button
+                type="button"
+                variant="outline"
+                className={epFormActionButton}
+                onClick={() => handleOpenChange(false)}
+                disabled={isChangingPassword}
+              >
+                Cancel
+              </Button>
+            )}
             <Button
               type="submit"
               className={epFormActionButton}

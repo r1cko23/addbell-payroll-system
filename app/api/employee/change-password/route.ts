@@ -1,4 +1,9 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  isDefaultPortalPassword,
+  requirePortalEmployee,
+  setPortalSessionCookie,
+} from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import {
   successResponse,
@@ -32,6 +37,11 @@ export async function POST(request: NextRequest) {
 
     const { employee_id, current_password, new_password } = body;
 
+    // Only the signed-in employee may change their own password; allowed while a
+    // default-password session is waiting for exactly this change.
+    const portal = requirePortalEmployee(employee_id, { allowPendingPasswordChange: true });
+    if (portal instanceof NextResponse) return portal;
+
     // Validate password length
     if (new_password.trim().length < 4) {
       return badRequestResponse(
@@ -49,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const { data: employeeRow, error: employeeError } = await supabase
       .from("employees")
-      .select("id")
+      .select("id, employee_id, company_id_no, employee_code")
       .eq("id", employee_id)
       .maybeSingle();
 
@@ -74,6 +84,15 @@ export async function POST(request: NextRequest) {
       return unauthorizedResponse("Current password is incorrect");
     }
 
+    const ids = employeeRow as {
+      employee_id?: string | null;
+      company_id_no?: string | null;
+      employee_code?: string | null;
+    };
+    if (isDefaultPortalPassword(new_password, [ids.employee_id, ids.company_id_no, ids.employee_code])) {
+      return badRequestResponse("Choose a password that is not your employee or company ID");
+    }
+
     const { error: updateError } = await supabase
       .from("employees")
       .update({
@@ -86,10 +105,13 @@ export async function POST(request: NextRequest) {
       return errorResponse(updateError.message || "Failed to change password");
     }
 
-    return successResponse({
+    const res = successResponse({
       success: true,
       message: "Password updated successfully",
     });
+    // Fresh session without the "must change password" flag.
+    setPortalSessionCookie(res, portal.employeeId);
+    return res;
   } catch (error: any) {
     console.error("Error in change-password API:", error);
     return errorResponse(error.message || "Internal server error");

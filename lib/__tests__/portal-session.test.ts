@@ -1,5 +1,7 @@
 import {
   createPortalSessionToken,
+  isDefaultPortalPassword,
+  verifyPortalSession,
   verifyPortalSessionToken,
 } from "@/lib/portal-session";
 
@@ -36,5 +38,36 @@ describe("portal session token", () => {
     expect(verifyPortalSessionToken("")).toBeNull();
     expect(verifyPortalSessionToken("abc")).toBeNull();
     expect(verifyPortalSessionToken("abc.def")).toBeNull();
+  });
+});
+
+describe("default-password sessions", () => {
+  beforeEach(() => {
+    process.env.PORTAL_SESSION_SECRET = "test-secret";
+  });
+
+  test("the must-change flag survives the signed token", () => {
+    const token = createPortalSessionToken(EMPLOYEE, Date.now(), true);
+    expect(verifyPortalSession(token)).toEqual({ employeeId: EMPLOYEE, mustChangePassword: true });
+  });
+
+  test("a normal session has no must-change flag", () => {
+    expect(verifyPortalSession(createPortalSessionToken(EMPLOYEE))?.mustChangePassword).toBe(false);
+  });
+
+  test("the flag cannot be removed without breaking the signature", () => {
+    const [, sig] = createPortalSessionToken(EMPLOYEE, Date.now(), true).split(".");
+    const stripped = Buffer.from(JSON.stringify({ e: EMPLOYEE, x: Date.now() + 60_000 })).toString("base64url");
+    expect(verifyPortalSession(`${stripped}.${sig}`)).toBeNull();
+  });
+
+  test("a password equal to one of the employee's IDs counts as default", () => {
+    expect(isDefaultPortalPassword("AX-10001", [null, "AX-10001", "123"])).toBe(true);
+    expect(isDefaultPortalPassword(" 123 ", ["2025001", null, "123"])).toBe(true);
+  });
+
+  test("any other password is not default", () => {
+    expect(isDefaultPortalPassword("my-own-pass", ["2025001", "AX-10001", "123"])).toBe(false);
+    expect(isDefaultPortalPassword("", ["", null])).toBe(false);
   });
 });

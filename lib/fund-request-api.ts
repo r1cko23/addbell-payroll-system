@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getPortalEmployeeId } from "@/lib/portal-session";
+import { getPortalSession } from "@/lib/portal-session";
 import {
   canRequesterAddDocumentToFundRequest,
   canRequesterEditFundRequest,
@@ -21,8 +21,12 @@ export function getAdminClient() {
  */
 export function portalRequesterError(authUserId: string | null, requesterEmployeeId: string) {
   if (authUserId) return null;
-  const portalEmployeeId = getPortalEmployeeId();
+  const portal = getPortalSession();
+  const portalEmployeeId = portal?.employeeId ?? null;
   if (!portalEmployeeId) return { error: "Not authenticated", status: 401 as const };
+  if (portal?.mustChangePassword) {
+    return { error: "Change your password to continue.", status: 403 as const };
+  }
   if (portalEmployeeId !== requesterEmployeeId.trim()) {
     return { error: "Request not found", status: 404 as const };
   }

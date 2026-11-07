@@ -11,13 +11,11 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
    - Upper Management / Admin see uploaded cheques in the Fund Request Approval inbox.
    - HR opens Payroll and creates a payroll run.
    - A corrected payslip (Aug 19 or Oct 28 run) looks right on screen and in print.
-6. **Security advisor warnings** (Claude, plus one setting for You):
-   - 17 functions without a fixed `search_path`.
-   - 14 SECURITY DEFINER functions signed-out visitors can call; review which must stay.
-   - Leaked-password protection is off in Supabase Auth (You: dashboard setting).
+6. **Turn on leaked-password protection** (You). Supabase dashboard → Authentication → Policies/Passwords. It's the last advisor warning that isn't on purpose.
 
 ## Next
 
+17. **First-login route trusts any employee ID** (Claude). `/api/employee/first-login` takes `employee_id` from the request body with no session check and calls `record_employee_first_login` as anon. Use the signed portal session to get the employee, call the function with the service role, deploy, then revoke anon from the function.
 16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
 7. **Storage bucket access rules** (Claude). Not reviewed yet; start with `fund-request-documents`.
 
@@ -33,10 +31,12 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 13. Cheque upload can partly succeed: if linking peer requests fails, only the first request gets the cheque (`docs/GOTCHAS.md` #2).
 14. Leave and OT approval routes put long ID lists into one `.in()` (`docs/GOTCHAS.md` #1). Fine today; batch before data grows.
+18. **`/clock` kiosk location check is broken** (Claude, low priority). `is_location_allowed` fails because `office_locations.latitude/longitude` are double precision and `calculate_distance` only takes numeric. No calls in the last day apart from tests, so the kiosk looks unused; either fix the cast or retire `/clock`. The portal bundy check (`is_employee_location_allowed`) works.
 15. `docs/RLS_LOCKDOWN_PLAN.md` "Not covered" still says portal passwords are plain text; they're hashed now (16c7074).
 
 ## Done
 
+- 2026-11-07 Security advisor clean-up: `search_path` pinned on 17 functions (warning count 17 → 0); signed-out access removed from 11 SECURITY DEFINER functions (anon-callable 14 → 3, the three kept on purpose). Checked: anon blocked from `get_my_role` / `approve_failure_to_log`, bundy location check and server time still work signed out, staff role helper and RLS reads still work (20261107140000).
 - 2026-11-07 Night differential on worked holidays and rest days now uses that day's rate, and the OT rate for night hours that are also overtime (`utils/payroll-calculator.ts`, `utils/__tests__/premium-day-night-diff.test.ts`). No stored payslip had such a day (both breakdown formats checked), so no backfill was needed; it applies to payslips generated from now on.
 - 2026-11-07 Item 4 closed with no change: the role-only `fund_requests_approve` rule is correct. Approval in the app is by role (`getActionableFundRequestStatuses`: operations manager, purchasing officer, admin, upper management), not by `fund_requests.update`. Switching would block operations managers (no update permission) and let HR edit. Keep the rule's role list in step with `getActionableFundRequestStatuses` if approval roles change.
 - 2026-11-07 Locked down `po_masterlist_jobs`: read with projects permission, no browser writes. Checked in production: employee-role login 0 rows / 0 edits, purchasing officer and admin read all 880. No public table has an allow-everything policy left (20261107130000).

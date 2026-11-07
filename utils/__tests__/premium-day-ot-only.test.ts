@@ -51,11 +51,12 @@ describe("rest day or holiday worked only through an approved OT request", () =>
 });
 
 describe("unchanged cases", () => {
-  test("holiday with a regular punch and OT on top keeps its pay", () => {
+  test("holiday with a regular punch and OT on top keeps its regular and OT pay", () => {
     const pay = calculateDailyPay("non-working-holiday", 8, 2, 1, RATE);
     expect(pay.regularPay).toBeCloseTo(8 * 130);
     expect(pay.overtimePay).toBeCloseTo(2 * 169);
-    expect(pay.nightDiffPay).toBeCloseTo(1 * RATE * 0.1);
+    // Night differential follows the day's OT rate (premium-day-night-diff.test.ts).
+    expect(pay.nightDiffPay).toBeCloseTo(1 * 169 * 0.1);
   });
 
   test("regular day OT-only keeps regular OT pricing", () => {
@@ -78,9 +79,9 @@ describe("overtimeAndNightDiffPay (payslip screen and print lines)", () => {
     expect(overtimePay + nightDiffPay).toBeCloseTo(day.total);
   });
 
-  test("punched holiday with OT on top matches the old per-type OT and ND", () => {
+  test("punched holiday with OT on top matches the per-type OT, with ND at the OT rate", () => {
     const { overtimePay, nightDiffPay } = overtimeAndNightDiffPay("non-working-holiday", 8, 2, 1, RATE);
     expect(overtimePay).toBeCloseTo(calculateNonWorkingHolidayOT(2, RATE));
-    expect(nightDiffPay).toBeCloseTo(calculateNightDiff(1, RATE));
+    expect(nightDiffPay).toBeCloseTo(calculateNightDiff(1, RATE * 1.3 * 1.3));
   });
 });

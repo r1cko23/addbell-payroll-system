@@ -327,7 +327,16 @@ export function calculateDailyPay(
       break;
   }
 
-  const nightDiffPay = calculateNightDiff(nightDiffHours, ratePerHour);
+  let nightDiffPay = calculateNightDiff(nightDiffHours, ratePerHour);
+  if (dayType !== "regular") {
+    // DOLE: 10% of that day's hourly rate; night hours that are also OT get 10% of the OT rate.
+    // shortcut: assumes night hours fall in the OT part first (evening OT); needs punch times to place them exactly.
+    const ndInOt = Math.min(nightDiffHours, overtimeHours);
+    const dayRate = ratePerHour * multiplier;
+    nightDiffPay =
+      calculateNightDiff(nightDiffHours - ndInOt, dayRate) +
+      calculateNightDiff(ndInOt, dayRate * PAYROLL_MULTIPLIERS.OT_PREMIUM);
+  }
   const total = regularPay + overtimePay + nightDiffPay;
 
   return {

@@ -130,8 +130,8 @@ describe("Payroll Calculator - Daily Pay Calculation", () => {
     const result = calculateDailyPay("sunday", 8, 2, 1, ratePerHour);
     expect(result.regularPay).toBe(1040);
     expect(result.overtimePay).toBe(338);
-    expect(result.nightDiffPay).toBe(10);
-    expect(result.total).toBe(1388);
+    expect(result.nightDiffPay).toBeCloseTo(16.9, 2); // 1 night hour in OT: 10% of the OT rate
+    expect(result.total).toBeCloseTo(1394.9, 2);
     expect(result.multiplier).toBe(1.3);
     expect(result.description).toBe("Sunday/Rest Day");
   });
@@ -140,8 +140,8 @@ describe("Payroll Calculator - Daily Pay Calculation", () => {
     const result = calculateDailyPay("non-working-holiday", 8, 2, 1, ratePerHour);
     expect(result.regularPay).toBe(1040);
     expect(result.overtimePay).toBe(338);
-    expect(result.nightDiffPay).toBe(10);
-    expect(result.total).toBe(1388);
+    expect(result.nightDiffPay).toBeCloseTo(16.9, 2); // 1 night hour in OT: 10% of the OT rate
+    expect(result.total).toBeCloseTo(1394.9, 2);
     expect(result.multiplier).toBe(1.3);
     expect(result.description).toBe("Non-Working Holiday");
   });
@@ -150,8 +150,8 @@ describe("Payroll Calculator - Daily Pay Calculation", () => {
     const result = calculateDailyPay("regular-holiday", 8, 2, 1, ratePerHour);
     expect(result.regularPay).toBe(1600);
     expect(result.overtimePay).toBe(520);
-    expect(result.nightDiffPay).toBe(10);
-    expect(result.total).toBe(2130);
+    expect(result.nightDiffPay).toBeCloseTo(26, 2); // 1 night hour in OT: 10% of the OT rate
+    expect(result.total).toBeCloseTo(2146, 2);
     expect(result.multiplier).toBe(2);
     expect(result.description).toBe("Regular Holiday");
   });
@@ -160,8 +160,8 @@ describe("Payroll Calculator - Daily Pay Calculation", () => {
     const result = calculateDailyPay("sunday-special-holiday", 8, 2, 1, ratePerHour);
     expect(result.regularPay).toBe(1200);
     expect(result.overtimePay).toBe(390);
-    expect(result.nightDiffPay).toBe(10);
-    expect(result.total).toBe(1600);
+    expect(result.nightDiffPay).toBeCloseTo(19.5, 2); // 1 night hour in OT: 10% of the OT rate
+    expect(result.total).toBeCloseTo(1609.5, 2);
     expect(result.multiplier).toBe(1.5);
     expect(result.description).toBe("Sunday + Special Holiday");
   });
@@ -170,8 +170,8 @@ describe("Payroll Calculator - Daily Pay Calculation", () => {
     const result = calculateDailyPay("sunday-regular-holiday", 8, 2, 1, ratePerHour);
     expect(result.regularPay).toBe(2080);
     expect(result.overtimePay).toBe(676);
-    expect(result.nightDiffPay).toBe(10);
-    expect(result.total).toBe(2766);
+    expect(result.nightDiffPay).toBeCloseTo(33.8, 2); // 1 night hour in OT: 10% of the OT rate
+    expect(result.total).toBeCloseTo(2789.8, 2);
     expect(result.multiplier).toBe(2.6);
     expect(result.description).toBe("Sunday + Regular Holiday");
   });
@@ -209,8 +209,8 @@ describe("Payroll Calculator - Weekly Payroll Calculation", () => {
     expect(result.breakdown).toHaveLength(4);
     expect(result.totals.regularPay).toBe(4240); // 800 + 1040 + 1600 + 800
     expect(result.totals.overtimePay).toBe(770); // 250 + 0 + 520 + 0
-    expect(result.totals.nightDiffPay).toBe(20); // 10 + 0 + 10 + 0
-    expect(result.grossPay).toBe(5030);
+    expect(result.totals.nightDiffPay).toBeCloseTo(36, 2); // 10 + 0 + 26 (holiday OT rate) + 0
+    expect(result.grossPay).toBeCloseTo(5046, 2);
   });
 
   test("should handle empty attendance", () => {

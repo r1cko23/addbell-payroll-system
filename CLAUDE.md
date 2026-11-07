@@ -2,6 +2,8 @@
 
 Read this first every session. Then read only what the task needs:
 
+- [docs/TODO.md](docs/TODO.md): the running to-do list. Take the top item unless the user asks for something else, and update the file (move done items, add new ones) in the same commit as the work
+
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the system is built and where things live
 - [docs/GOTCHAS.md](docs/GOTCHAS.md): traps that already cost us an incident. Check it before touching queries, uploads, bundy or payroll
 - [PRODUCT.md](PRODUCT.md): who uses it, brand, copy case

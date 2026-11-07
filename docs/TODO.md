@@ -15,7 +15,6 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Next
 
-17. **First-login route trusts any employee ID** (Claude → You). Code fixed: the route now takes the employee from the signed portal session (allowing a pending password change, since first logins use the default password), refuses anyone else's ID, and calls the function with the service role (`lib/__tests__/first-login-route.test.ts`). **Waiting on:** push and deploy, then you run `20261107150000_revoke_anon_record_first_login.sql` (only after the deploy is live).
 16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
 7. **Storage bucket access rules** (Claude). Not reviewed yet; start with `fund-request-documents`.
 
@@ -36,6 +35,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Done
 
+- 2026-11-07 First-login route takes the employee from the signed portal session and calls `record_employee_first_login` with the service role; signed-out and signed-in API access to the function removed. Checked: anon call returns 401, service role can still run it, signed-out-callable definer functions down to the two location checks (62bfe1a, 20261107150000).
 - 2026-11-07 Security advisor clean-up: `search_path` pinned on 17 functions (warning count 17 → 0); signed-out access removed from 11 SECURITY DEFINER functions (anon-callable 14 → 3, the three kept on purpose). Checked: anon blocked from `get_my_role` / `approve_failure_to_log`, bundy location check and server time still work signed out, staff role helper and RLS reads still work (20261107140000).
 - 2026-11-07 Night differential on worked holidays and rest days now uses that day's rate, and the OT rate for night hours that are also overtime (`utils/payroll-calculator.ts`, `utils/__tests__/premium-day-night-diff.test.ts`). No stored payslip had such a day (both breakdown formats checked), so no backfill was needed; it applies to payslips generated from now on.
 - 2026-11-07 Item 4 closed with no change: the role-only `fund_requests_approve` rule is correct. Approval in the app is by role (`getActionableFundRequestStatuses`: operations manager, purchasing officer, admin, upper management), not by `fund_requests.update`. Switching would block operations managers (no update permission) and let HR edit. Keep the rule's role list in step with `getActionableFundRequestStatuses` if approval roles change.

@@ -11,11 +11,10 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
    - Upper Management / Admin see uploaded cheques in the Fund Request Approval inbox.
    - HR opens Payroll and creates a payroll run.
    - A corrected payslip (Aug 19 or Oct 28 run) looks right on screen and in print.
-3. **Lock down `po_masterlist_jobs`** (Claude). It's the last table with `authenticated using (true)`. Rules should follow `lib/po-masterlist-column-acl.ts`; the sheet sync uses the service role and isn't affected. Can run while you do item 2.
+4. **Fund-request edit rule uses roles only** (Claude). Switch `fund_requests_approve` to the permission helper so `profiles.permissions` overrides apply. Can run while you do item 2.
 
 ## Next
 
-4. **Fund-request edit rule uses roles only** (Claude). Switch `fund_requests_approve` to the permission helper so `profiles.permissions` overrides apply.
 5. **Night differential on worked holidays and rest days** (Claude). With a regular punch it's still 10% of the basic rate, not of that day's rate. The overtime-only case is fixed (98a4c30). Needs tests, the fix, and a dry-run backfill.
 6. **Security advisor warnings** (Claude, plus one setting for You):
    - 17 functions without a fixed `search_path`.
@@ -39,6 +38,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Done
 
+- 2026-11-07 Locked down `po_masterlist_jobs`: read with projects permission, no browser writes. Checked in production: employee-role login 0 rows / 0 edits, purchasing officer and admin read all 880. No public table has an allow-everything policy left (20261107130000).
 - 2026-11-07 Merged the permission helpers: `staff_can` now wraps `has_module_permission`, which matches the app's rules exactly (active profiles only, admin full on directory modules). Applied and checked per account in production (20261107120000).
 - 2026-11-07 Archived the finished payroll and holiday-pay sessions.
 - 2026-11-07 Forced password change for default portal passwords (4234bb9).

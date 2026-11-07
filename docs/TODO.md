@@ -15,7 +15,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Next
 
-17. **First-login route trusts any employee ID** (Claude). `/api/employee/first-login` takes `employee_id` from the request body with no session check and calls `record_employee_first_login` as anon. Use the signed portal session to get the employee, call the function with the service role, deploy, then revoke anon from the function.
+17. **First-login route trusts any employee ID** (Claude → You). Code fixed: the route now takes the employee from the signed portal session (allowing a pending password change, since first logins use the default password), refuses anyone else's ID, and calls the function with the service role (`lib/__tests__/first-login-route.test.ts`). **Waiting on:** push and deploy, then you run `20261107150000_revoke_anon_record_first_login.sql` (only after the deploy is live).
 16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
 7. **Storage bucket access rules** (Claude). Not reviewed yet; start with `fund-request-documents`.
 

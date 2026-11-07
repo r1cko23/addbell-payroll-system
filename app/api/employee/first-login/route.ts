@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { getAdminClient } from "@/lib/fund-request-api";
+import { requirePortalEmployee } from "@/lib/portal-session";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -26,19 +26,16 @@ export async function POST(request: NextRequest) {
       mac_address,
     } = body;
 
-    if (!employee_id) {
-      return NextResponse.json(
-        { success: false, error: "Employee ID is required" },
-        { status: 400 }
-      );
-    }
+    // First logins happen on the default password, so a pending password change is allowed here.
+    const portal = requirePortalEmployee(employee_id, { allowPendingPasswordChange: true });
+    if (portal instanceof NextResponse) return portal;
 
-    const supabase = createServerComponentClient({ cookies });
+    const supabase = getAdminClient();
     const ipAddress = getClientIp(request);
 
     // Call the database function to record first login
     const { data, error } = await supabase.rpc("record_employee_first_login", {
-      p_employee_id: employee_id,
+      p_employee_id: portal.employeeId,
       p_ip_address: ipAddress,
       p_user_agent: user_agent || null,
       p_device_info: device_info || null,

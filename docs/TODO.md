@@ -11,11 +11,10 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
    - Upper Management / Admin see uploaded cheques in the Fund Request Approval inbox.
    - HR opens Payroll and creates a payroll run.
    - A corrected payslip (Aug 19 or Oct 28 run) looks right on screen and in print.
-4. **Fund-request edit rule uses roles only** (Claude). Switch `fund_requests_approve` to the permission helper so `profiles.permissions` overrides apply. Can run while you do item 2.
+5. **Night differential on worked holidays and rest days** (Claude). With a regular punch it's still 10% of the basic rate, not of that day's rate. The overtime-only case is fixed (98a4c30). Needs tests, the fix, and a dry-run backfill.
 
 ## Next
 
-5. **Night differential on worked holidays and rest days** (Claude). With a regular punch it's still 10% of the basic rate, not of that day's rate. The overtime-only case is fixed (98a4c30). Needs tests, the fix, and a dry-run backfill.
 6. **Security advisor warnings** (Claude, plus one setting for You):
    - 17 functions without a fixed `search_path`.
    - 14 SECURITY DEFINER functions signed-out visitors can call; review which must stay.
@@ -38,6 +37,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Done
 
+- 2026-11-07 Item 4 closed with no change: the role-only `fund_requests_approve` rule is correct. Approval in the app is by role (`getActionableFundRequestStatuses`: operations manager, purchasing officer, admin, upper management), not by `fund_requests.update`. Switching would block operations managers (no update permission) and let HR edit. Keep the rule's role list in step with `getActionableFundRequestStatuses` if approval roles change.
 - 2026-11-07 Locked down `po_masterlist_jobs`: read with projects permission, no browser writes. Checked in production: employee-role login 0 rows / 0 edits, purchasing officer and admin read all 880. No public table has an allow-everything policy left (20261107130000).
 - 2026-11-07 Merged the permission helpers: `staff_can` now wraps `has_module_permission`, which matches the app's rules exactly (active profiles only, admin full on directory modules). Applied and checked per account in production (20261107120000).
 - 2026-11-07 Archived the finished payroll and holiday-pay sessions.

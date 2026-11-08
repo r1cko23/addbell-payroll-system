@@ -16,7 +16,8 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 ## Next
 
 16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
-7. **Storage bucket access rules** (Claude). Not reviewed yet; start with `fund-request-documents`.
+7. **Storage bucket rules** (Claude → You). Reviewed: `fund-request-documents` is the only bucket, private, no browser writes, every document row has its file. `20261108090000_fund_request_documents_bucket_rules.sql` limits uploads to pdf/doc/docx/jpeg/png/webp and stops deactivated staff reading it. **Waiting on:** you run it in the SQL Editor.
+19. **Profile picture upload is broken** (Claude, after you decide). Settings and the portal Info page upload to a `profile-pictures` bucket and call `update_user_profile_picture` / `update_employee_profile_picture`; none of the three exist in production, so every upload fails. Decide: build it properly (bucket + server route behind the portal session) or remove the upload button.
 
 ## Decisions for HR / payroll (You)
 

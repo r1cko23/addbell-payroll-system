@@ -14,12 +14,10 @@ Nothing waiting on Claude.
 
 ## Decisions for HR / payroll (You)
 
-8. Reprint or re-export copies of the 7 corrected runs handed out before 2026-11-06: May 27, Aug 19, Sep 9, Sep 23, Oct 14, Oct 21, Oct 28. The 2026-11-08 night differential correction also changed 33 payslips in 18 runs (May 20 to Nov 3, +₱2.50 to +₱47.50 each; list in `docs/backfills/2026-11-regular-day-ot-night-diff.md`).
 9. Confirm the ₱1,620.44 withholding tax on payslip `cdd0f7eb…` (Oct 21–27). The tax formula doesn't produce it; probably typed in by hand.
 10. Does a 10-hour regular day count as 1 day or 1.25? (Today: 1.25, since hourly = daily ÷ 8.) Changing it changes pay.
 11. One employee has no portal password and can't sign in until HR sets one.
 12. Move the payroll backup files off this Mac's app storage to where HR keeps payroll records: `~/Library/Application Support/Claude/side-session-notes/local_3beff32f-aeb8-4128-b338-5c2a9b076aea/`.
-20. 5 older-format payslips (Apr 22–May 19, 7 days) missed the regular-day OT night differential correction: about ₱49 in total at today's rates. Pay as an adjustment on a coming payslip if wanted (`docs/backfills/2026-11-regular-day-ot-night-diff.md`).
 
 ## Later
 
@@ -27,6 +25,7 @@ Nothing waiting on Claude.
 
 ## Done
 
+- 2026-11-08 No reprints needed (items 8 and 20 closed): per you, the corrected payslips were already paid and corrected outside the system; the backfills only bring the records in line.
 - 2026-11-08 Night differential on regular-day overtime now uses the OT rate (8f1d302). Backfill applied to 33 payslips, +₱310.78 gross and net, checked against the backup (`docs/backfills/2026-11-regular-day-ot-night-diff.md`).
 - 2026-11-08 Live app checked by you: portal sign-in (including a default-password account), cheques in the approval inbox, HR creating a payroll run, and a corrected payslip on screen and in print.
 - 2026-11-08 `docs/RLS_LOCKDOWN_PLAN.md` brought up to date: passwords hashed, storage reviewed, and the list of functions callable signed out is down to the portal bundy check.

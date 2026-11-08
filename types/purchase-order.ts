@@ -2,6 +2,8 @@
  * Purchase Order types - matches Addbell PO format and construction industry standards
  */
 
+import type { PoVatMode } from "@/lib/po-vat";
+
 export interface PurchaseOrderLineItem {
   itemNo: number;
   description: string;
@@ -38,6 +40,7 @@ export interface PurchaseOrder {
   /** Shown when purchasing created the PO without a client P.O. yet. */
   basisNote?: string;
   items: PurchaseOrderLineItem[];
+  vatMode: PoVatMode;
   paymentTerms: string[];
   requestedBy: string;
   preparedBy: string;

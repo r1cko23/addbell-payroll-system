@@ -59,6 +59,7 @@ describe("purchase order payment term options", () => {
       projectTitle: "Site",
       deliverTo: "",
       items: [],
+      vatMode: "non_vat",
       paymentTerms: ["30% DP | 60% PB | 90% PB | 10% Ret (2 weeks)"],
       requestedBy: "",
       preparedBy: "",

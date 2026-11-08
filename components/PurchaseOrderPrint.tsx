@@ -3,6 +3,7 @@
 import { forwardRef } from "react";
 import { formatCurrency } from "@/utils/format";
 import type { PurchaseOrder } from "@/types/purchase-order";
+import { poVatTotals } from "@/lib/po-vat";
 
 /** Addbell brand colors - from logo (reddish-brown/sepia + blue) */
 const COLORS = {
@@ -26,7 +27,7 @@ export const PurchaseOrderPrint = forwardRef<
   HTMLDivElement,
   PurchaseOrderPrintProps
 >(function PurchaseOrderPrint({ data }, ref) {
-  const grandTotal = data.items.reduce((sum, i) => sum + i.totalAmount, 0);
+  const totals = poVatTotals(data.items.reduce((sum, i) => sum + i.totalAmount, 0), data.vatMode);
 
   return (
     <div
@@ -437,32 +438,29 @@ export const PurchaseOrderPrint = forwardRef<
         </table>
       </div>
 
-      {/* Total */}
+      {/* Totals */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
         <div
           className="po-total-box"
           style={{
-            display: "flex",
+            display: "grid",
+            gridTemplateColumns: "auto auto",
+            columnGap: "16px",
+            rowGap: "2px",
             alignItems: "baseline",
-            gap: "12px",
             padding: "5px 10px",
             border: "1px solid #333",
             borderRadius: "4px",
+            textAlign: "right",
           }}
         >
-          <span
-            style={{
-              fontSize: "8px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              color: COLORS.dark,
-            }}
-          >
-            Approximate Total
-          </span>
-          <span style={{ fontSize: "12px", fontWeight: 700 }}>
-            {formatCurrency(grandTotal)}
+          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>Sub-Total</span>
+          <span style={{ fontSize: "10px" }}>{formatCurrency(totals.subtotal)}</span>
+          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>VAT Amount</span>
+          <span style={{ fontSize: "10px" }}>{formatCurrency(totals.vatAmount)}</span>
+          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark, paddingTop: "3px", borderTop: "1px solid #333" }}>Total Amount</span>
+          <span style={{ fontSize: "12px", fontWeight: 700, paddingTop: "3px", borderTop: "1px solid #333" }}>
+            {formatCurrency(totals.totalAmount)}
           </span>
         </div>
       </div>

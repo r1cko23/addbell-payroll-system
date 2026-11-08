@@ -23,6 +23,7 @@ Nothing waiting on Claude.
 
 ## Done
 
+- 2026-11-08 PO VAT: the form has VAT Inc (amount ÷ 1.12 = sub-total), VAT Ex (amount × 1.12 = total) and Non-VAT buttons; the print shows Sub-Total, VAT Amount and Total Amount, and saving stores all three (`lib/po-vat.ts`). PO print layout tightened per your notes the same day.
 - 2026-11-08 New purchase order screen shows a live preview of the printed PO beside the form (below it on narrower screens); Print and PDF use the same copy. Checked in the dev app: the preview updates as you type.
 - 2026-11-08 Items 9 and 10 closed by you: the ₱1,620.44 tax on payslip `cdd0f7eb…` was entered by hand and stays as is; a 10-hour regular day stays at 1.25 days (hourly = daily ÷ 8).
 - 2026-11-08 No reprints needed (items 8 and 20 closed): per you, the corrected payslips were already paid and corrected outside the system; the backfills only bring the records in line.

@@ -70,6 +70,7 @@ import { Printer, Plus, Trash2, FileDown, Hash, Save, Search, ArrowLeft, List } 
 import { toast } from "sonner";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { normalizePOData } from "@/utils/po-format";
+import { PO_VAT_MODES, poVatTotals, type PoVatMode } from "@/lib/po-vat";
 import { primaryVendorEmail, primaryVendorPhone } from "@/lib/vendor-contacts";
 
 const emptyVendor: PurchaseOrderVendor = { name: "", contactPerson: "", tin: "", address: "", phone: "", email: "" };
@@ -167,6 +168,7 @@ export default function PurchaseOrderPage() {
   const [projectTitle, setProjectTitle] = useState("");
   const [deliverTo, setDeliverTo] = useState("");
   const [items, setItems] = useState<PurchaseOrderLineItem[]>([emptyItem(1)]);
+  const [vatMode, setVatMode] = useState<PoVatMode>("vat_inclusive");
   const [paymentTerms, setPaymentTerms] = useState(DEFAULT_PAYMENT_TERMS);
   const [paymentTermsManual, setPaymentTermsManual] = useState(false);
   const [requestedBy, setRequestedBy] = useState("");
@@ -318,7 +320,7 @@ export default function PurchaseOrderPage() {
   const poData: PurchaseOrder = {
     poNumber, date, vendor, requisitioner, company: DEFAULT_COMPANY, projectTitle, deliverTo,
     items: items.map((it, i) => ({ ...it, itemNo: i + 1, totalAmount: (parseFloat(String(it.qty)) || 0) * (it.unitPrice || 0) })),
-    paymentTerms, requestedBy: requestedBy.trim() || requisitioner, preparedBy, reviewedBy, approvedBy, approvedByTitle,
+    vatMode, paymentTerms, requestedBy: requestedBy.trim() || requisitioner, preparedBy, reviewedBy, approvedBy, approvedByTitle,
     printTimestamp: new Date().toISOString(),
   };
 
@@ -375,7 +377,7 @@ export default function PurchaseOrderPage() {
         unit_price: it.unitPrice, line_total: it.totalAmount,
       }));
 
-      const subtotal = itemsPayload.reduce((s, it) => s + it.line_total, 0);
+      const totals = poVatTotals(itemsPayload.reduce((s, it) => s + it.line_total, 0), normalized.vatMode);
       const { data: poRow, error: poError } = await supabase.from("purchase_orders").insert({
         company_id: companyId, project_id: catalogProjectId, vendor_id: selectedVendorId,
         po_number: normalized.poNumber, po_date: new Date().toISOString().slice(0, 10), po_date_text: normalized.date,
@@ -385,7 +387,7 @@ export default function PurchaseOrderPage() {
         project_title: normalized.projectTitle, deliver_to: normalized.deliverTo,
         vendor_snapshot: normalized.vendor, company_snapshot: normalized.company,
         payment_terms: normalized.paymentTerms, print_timestamp: normalized.printTimestamp,
-        subtotal, vat_amount: 0, total_amount: subtotal,
+        subtotal: totals.subtotal, vat_amount: totals.vatAmount, total_amount: totals.totalAmount,
         ...masterlistLink,
       } as never).select("id").single();
 
@@ -474,6 +476,7 @@ export default function PurchaseOrderPage() {
     setProjectTitle("");
     setDeliverTo("");
     setItems([emptyItem(1)]);
+    setVatMode("vat_inclusive");
     setPaymentTerms(DEFAULT_PAYMENT_TERMS);
     setPaymentTermsManual(false);
     setRequestedBy("");
@@ -794,11 +797,36 @@ export default function PurchaseOrderPage() {
                 <div className="space-y-2 sm:col-span-2 flex flex-col justify-end"><Label>Total</Label><p className="text-base font-semibold">₱{((parseFloat(String(item.qty)) || 0) * (item.unitPrice || 0)).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p></div>
               </div>
             ))}
-            <div className="flex justify-end border-t pt-4">
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Grand total</p>
-                <p className="text-xl font-bold">₱{items.reduce((sum, it) => sum + (parseFloat(String(it.qty)) || 0) * (it.unitPrice || 0), 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+            <div className="flex flex-col gap-4 border-t pt-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-2">
+                <Label>VAT</Label>
+                <div role="radiogroup" aria-label="VAT" className="flex gap-2">
+                  {PO_VAT_MODES.map((m) => (
+                    <Button
+                      key={m.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={vatMode === m.value}
+                      variant={vatMode === m.value ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setVatMode(m.value)}
+                    >
+                      {m.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
+              {(() => {
+                const t = poVatTotals(poData.items.reduce((sum, it) => sum + it.totalAmount, 0), vatMode);
+                const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                return (
+                  <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-1 text-right text-sm tabular-nums">
+                    <dt className="text-muted-foreground">Sub-total</dt><dd>{peso(t.subtotal)}</dd>
+                    <dt className="text-muted-foreground">VAT amount</dt><dd>{peso(t.vatAmount)}</dd>
+                    <dt className="font-semibold">Total amount</dt><dd className="text-xl font-bold">{peso(t.totalAmount)}</dd>
+                  </dl>
+                );
+              })()}
             </div>
           </CardContent>
         </Card>

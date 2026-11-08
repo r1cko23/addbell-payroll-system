@@ -437,63 +437,31 @@ export const PurchaseOrderPrint = forwardRef<
         </table>
       </div>
 
-      {/* Total & Conforme */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          marginTop: "20px",
-          gap: "24px",
-        }}
-      >
-        <div>
-          <span
-            style={{
-              fontSize: "9px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              color: COLORS.dark,
-              letterSpacing: "0.03em",
-              display: "block",
-              marginBottom: "6px",
-            }}
-          >
-            Conforme (Vendor Acceptance)
-          </span>
-          <div
-            style={{
-              width: "180px",
-              height: "36px",
-              borderBottom: "1px solid #333",
-            }}
-          />
-          <p style={{ margin: "6px 0 0", fontSize: "9px", color: COLORS.muted }}>
-            Signature over Printed Name
-          </p>
-        </div>
+      {/* Total */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
         <div
           className="po-total-box"
           style={{
-            textAlign: "right",
-            padding: "10px 14px",
+            display: "flex",
+            alignItems: "baseline",
+            gap: "12px",
+            padding: "5px 10px",
             border: "1px solid #333",
             borderRadius: "4px",
           }}
         >
           <span
             style={{
-              fontSize: "9px",
+              fontSize: "8px",
               fontWeight: 700,
               textTransform: "uppercase",
+              letterSpacing: "0.03em",
               color: COLORS.dark,
-              display: "block",
-              marginBottom: "4px",
             }}
           >
             Approximate Total
           </span>
-          <span style={{ fontSize: "16px", fontWeight: 700 }}>
+          <span style={{ fontSize: "12px", fontWeight: 700 }}>
             {formatCurrency(grandTotal)}
           </span>
         </div>

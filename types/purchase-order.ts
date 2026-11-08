@@ -52,7 +52,7 @@ export interface PurchaseOrder {
 export const DEFAULT_COMPANY: PurchaseOrderCompany = {
   name: "ADD-BELL TECHNICAL SERVICES, INC.",
   tin: "007-997-875-00000",
-  address: "BLK 6 LOT 26 LONDON ST. VILLA OLYMPIA 1 BRGY. MAHARLIKA SAN PEDRO, LAGUNA",
+  address: "BLK 6 LOT 26 LONDON ST. VILLA OLYMPIA 1 BRGY. MAHARLIKA SAN PEDRO LAGUNA",
   phone: "(02) 7117-6128",
   email: "admin@addbell.com / phen.conte@addbell.com",
 };

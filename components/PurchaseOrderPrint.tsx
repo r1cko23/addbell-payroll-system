@@ -230,7 +230,6 @@ export const PurchaseOrderPrint = forwardRef<
               address: data.vendor.address,
               phone: data.vendor.phone,
               email: data.vendor.email,
-              extra: `Requisitioner: ${data.requisitioner}`,
             },
           },
           {
@@ -244,7 +243,6 @@ export const PurchaseOrderPrint = forwardRef<
               address: data.company.address,
               phone: data.company.phone,
               email: data.company.email,
-              extra: null,
             },
           },
         ].map((block) => (
@@ -300,19 +298,6 @@ export const PurchaseOrderPrint = forwardRef<
             <p style={{ margin: 0, fontSize: "9px" }}>
               Email: {block.data.email}
             </p>
-            {block.data.extra && (
-              <p
-                style={{
-                  margin: "4px 0 0",
-                  paddingTop: "4px",
-                  borderTop: "1px solid rgba(0,0,0,0.1)",
-                  fontSize: "9px",
-                  fontWeight: 500,
-                }}
-              >
-                {block.data.extra}
-              </p>
-            )}
           </div>
         ))}
       </div>

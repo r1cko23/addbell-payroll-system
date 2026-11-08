@@ -42,10 +42,32 @@ describe("night differential on worked holidays and rest days (regular punch)", 
   });
 });
 
-describe("unchanged cases", () => {
-  it("regular day stays at 10% of the basic rate", () => {
-    expect(nd("regular", 8, 2, 2)).toBeCloseTo(2 * RATE * 0.1, 2);
+describe("night differential on regular days", () => {
+  it("night hours that are also overtime use the overtime rate (×1.25)", () => {
+    expect(nd("regular", 8, 2, 2)).toBeCloseTo(2 * 125 * 0.1, 2);
   });
+
+  it("night hours beyond the overtime use the basic rate", () => {
+    // 8h + 1h OT, 3 night hours: 1 in OT (×1.25), 2 in the shift (×1).
+    expect(nd("regular", 8, 1, 3)).toBeCloseTo(1 * 125 * 0.1 + 2 * RATE * 0.1, 2);
+  });
+
+  it("night hours with no overtime use the basic rate", () => {
+    expect(nd("regular", 8, 0, 2)).toBeCloseTo(2 * RATE * 0.1, 2);
+  });
+
+  it("zero night hours pays nothing", () => {
+    expect(nd("regular", 8, 3, 0)).toBe(0);
+  });
+
+  it("total and the screen helper include it", () => {
+    const day = calculateDailyPay("regular", 8, 2, 2, RATE);
+    expect(day.total).toBeCloseTo(800 + 2 * 125 + 2 * 125 * 0.1, 2);
+    expect(overtimeAndNightDiffPay("regular", 8, 2, 2, RATE).nightDiffPay).toBeCloseTo(25, 2);
+  });
+});
+
+describe("unchanged cases", () => {
 
   it("overtime-only rest day keeps the 98a4c30 pricing", () => {
     // Sunday + special, 10h through an OT request, no night hours past 8 → 0 ND.

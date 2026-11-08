@@ -10,7 +10,7 @@ Nothing waiting on Claude.
 
 ## Next
 
-16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
+16. **Night differential on regular-day overtime** (Claude → You). Code fixed: night hours that are also OT on a regular day now get 10% of the OT rate (`calculateDailyPay`, `lib/payslip-print-sync.ts`). Backfill: 33 payslips, +₱310.78 (`docs/backfills/2026-11-regular-day-ot-night-diff.md`). **Waiting on:** push, then you run `docs/backfills/2026-11-regular-day-ot-night-diff.sql`. HR: 5 older-format payslips (Apr 22–May 19, about ₱49) can only be paid as an adjustment.
 
 ## Decisions for HR / payroll (You)
 

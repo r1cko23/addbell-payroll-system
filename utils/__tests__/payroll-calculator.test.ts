@@ -120,8 +120,8 @@ describe("Payroll Calculator - Daily Pay Calculation", () => {
     const result = calculateDailyPay("regular", 8, 2, 1, ratePerHour);
     expect(result.regularPay).toBe(800);
     expect(result.overtimePay).toBe(250);
-    expect(result.nightDiffPay).toBe(10);
-    expect(result.total).toBe(1060);
+    expect(result.nightDiffPay).toBe(12.5); // night hour inside OT: 10% of the OT rate (125)
+    expect(result.total).toBe(1062.5);
     expect(result.multiplier).toBe(1);
     expect(result.description).toBe("Regular Day");
   });
@@ -188,8 +188,8 @@ describe("Payroll Calculator - Daily Pay Calculation", () => {
     const result = calculateDailyPay("regular", 4, 1, 0.5, ratePerHour);
     expect(result.regularPay).toBe(400);
     expect(result.overtimePay).toBe(125);
-    expect(result.nightDiffPay).toBe(5);
-    expect(result.total).toBe(530);
+    expect(result.nightDiffPay).toBe(6.25);
+    expect(result.total).toBe(531.25);
   });
 });
 
@@ -209,8 +209,8 @@ describe("Payroll Calculator - Weekly Payroll Calculation", () => {
     expect(result.breakdown).toHaveLength(4);
     expect(result.totals.regularPay).toBe(4240); // 800 + 1040 + 1600 + 800
     expect(result.totals.overtimePay).toBe(770); // 250 + 0 + 520 + 0
-    expect(result.totals.nightDiffPay).toBeCloseTo(36, 2); // 10 + 0 + 26 (holiday OT rate) + 0
-    expect(result.grossPay).toBeCloseTo(5046, 2);
+    expect(result.totals.nightDiffPay).toBeCloseTo(38.5, 2); // 12.5 (regular OT rate) + 0 + 26 (holiday OT rate) + 0
+    expect(result.grossPay).toBeCloseTo(5048.5, 2);
   });
 
   test("should handle empty attendance", () => {
@@ -399,14 +399,14 @@ describe("Payroll Calculator - Edge Cases and Error Handling", () => {
     expect(result.total).toBeGreaterThan(0);
     expect(result.regularPay).toBe(2400);
     expect(result.overtimePay).toBe(1000);
-    expect(result.nightDiffPay).toBe(40);
+    expect(result.nightDiffPay).toBe(50);
   });
 
   test("should handle decimal hours", () => {
     const result = calculateDailyPay("regular", 8.5, 2.5, 1.5, ratePerHour);
     expect(result.regularPay).toBe(850);
     expect(result.overtimePay).toBe(312.5);
-    expect(result.nightDiffPay).toBe(15);
+    expect(result.nightDiffPay).toBe(18.75);
   });
 
   test("should handle negative hours (should not crash)", () => {

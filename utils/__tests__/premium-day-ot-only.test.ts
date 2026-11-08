@@ -63,7 +63,7 @@ describe("unchanged cases", () => {
     const pay = calculateDailyPay("regular", 0, 3, 1, RATE);
     expect(pay.regularPay).toBe(0);
     expect(pay.overtimePay).toBeCloseTo(3 * 125);
-    expect(pay.nightDiffPay).toBeCloseTo(10);
+    expect(pay.nightDiffPay).toBeCloseTo(12.5); // night hour in OT: 10% of the OT rate
   });
 
   test("unworked holiday credit (no OT) is not affected", () => {

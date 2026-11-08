@@ -10,7 +10,7 @@ import {
 } from "@/lib/payroll-earnings-breakdown";
 import type { DayType } from "@/utils/payroll-calculator";
 import {
-  calculateNightDiff,
+  overtimeAndNightDiffPay,
   calculateNonWorkingHoliday,
   calculateRegularHoliday,
   calculateRegularOT,
@@ -259,10 +259,13 @@ export function buildPayslipPrintSyncFromStoredPayslip(
       }
       if (nightDiffHours > 0) {
         breakdown.nightDifferential.hours += nightDiffHours;
-        breakdown.nightDifferential.amount += calculateNightDiff(
+        breakdown.nightDifferential.amount += overtimeAndNightDiffPay(
+          dayType,
+          regularHours,
+          overtimeHours,
           nightDiffHours,
           ratePerHour
-        );
+        ).nightDiffPay;
       }
     }
 

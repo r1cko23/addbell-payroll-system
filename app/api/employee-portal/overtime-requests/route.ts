@@ -1,3 +1,4 @@
+import { selectInBatches } from "@/lib/supabase-in-batches";
 import { NextRequest, NextResponse } from "next/server";
 import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
@@ -80,10 +81,11 @@ export async function GET(req: NextRequest) {
         > = {};
 
         if (requestIds.length > 0) {
-          const { data: docs, error: docsError } = await admin
-            .from("overtime_documents")
-            .select("id, overtime_request_id, file_name")
-            .in("overtime_request_id", requestIds);
+          // The bundy page loads every OT request the employee has ever filed.
+          const { data: docs, error: docsError } = await selectInBatches(requestIds, (ids) =>
+            admin.from("overtime_documents").select("id, overtime_request_id, file_name").in("overtime_request_id", ids)
+          );
+          if (docsError) throw new Error(docsError.message);
 
           if (!docsError && docs) {
             for (const d of docs as {
@@ -129,10 +131,10 @@ export async function GET(req: NextRequest) {
           }
         > = {};
         if (punchIds.size > 0) {
-          const { data: punchRows } = await admin
-            .from("time_entries")
-            .select("id, punched_at, lat, lng, punch_type")
-            .in("id", Array.from(punchIds));
+          const { data: punchRows, error: punchError } = await selectInBatches(Array.from(punchIds), (ids) =>
+            admin.from("time_entries").select("id, punched_at, lat, lng, punch_type").in("id", ids)
+          );
+          if (punchError) throw new Error(punchError.message);
           (punchRows || []).forEach((p: any) => {
             punchById[p.id] = p;
           });

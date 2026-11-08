@@ -11,6 +11,7 @@ import { getFundRequestPayeeAccountName } from "@/lib/fund-request-inbox-groupin
 import { uploadFundRequestDocumentFile } from "@/lib/fund-request-document-upload-client";
 import type { FundRequestDocumentSummary, FundRequestRow } from "@/types/fund-request";
 import { normalizeUserRole } from "@/lib/user-roles";
+import { selectInBatches } from "@/lib/supabase-in-batches";
 
 export const FUND_REQUEST_PAYMENT_CHECK_PEER_STATUSES = [
   "purchasing_officer_approved",
@@ -190,26 +191,17 @@ export function canViewFundRequestPaymentChecksInInbox(role: string | null | und
   return normalizedRole === "upper_management" || normalizedRole === "admin";
 }
 
-// One GET with ~650 UUIDs in `in.(...)` exceeds the Supabase gateway URL limit (400).
-const PAYMENT_CHECK_ID_BATCH_SIZE = 100;
-
 export async function loadFundRequestPaymentCheckDocumentsByRequestId(
   requestIds: string[],
   fetchBatch: (
     ids: string[]
   ) => PromiseLike<{ data: FundRequestDocumentSummary[] | null; error: { message: string } | null }>
 ): Promise<{ documents: Record<string, FundRequestDocumentSummary[]>; error?: string }> {
-  const batches: string[][] = [];
-  for (let i = 0; i < requestIds.length; i += PAYMENT_CHECK_ID_BATCH_SIZE) {
-    batches.push(requestIds.slice(i, i + PAYMENT_CHECK_ID_BATCH_SIZE));
-  }
-
-  const results = await Promise.all(batches.map((batch) => fetchBatch(batch)));
-  const failed = results.find((result) => result.error);
-  if (failed?.error) return { documents: {}, error: failed.error.message };
+  const { data, error } = await selectInBatches(requestIds, fetchBatch);
+  if (error) return { documents: {}, error: error.message };
 
   const documents: Record<string, FundRequestDocumentSummary[]> = {};
-  for (const row of results.flatMap((result) => result.data ?? [])) {
+  for (const row of data) {
     (documents[row.fund_request_id] ??= []).push(row);
   }
   return { documents };

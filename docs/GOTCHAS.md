@@ -13,7 +13,8 @@ Reproduced: the same URL succeeds with the anon key, fails once ~1.2 KB of extra
 **Rule:**
 - Don't build a client-side `.in()` from a list that grows with business data. Batch it (≤100 IDs per request) or move the filter to the server or an RPC.
 - On a fetch error, keep the previous state and show an error. Don't reset to empty.
-- Other `.in(ids)` calls to watch: `app/api/leave-approval`, `app/api/overtime-approval`, `app/api/employee-portal/{leave,overtime}-requests`. They run server-side on smaller scoped lists today.
+- Use `selectInBatches` (`lib/supabase-in-batches.ts`). The server is not exempt: the same URL limit applies to service-role calls.
+- Checked 2026-11-08: the leave, OT and failure-to-log approval routes only ever load one week (24 requests at most so far), so they stay unbatched. The portal OT route loads every request an employee has filed (99 and about 200 punch IDs for the busiest one), so it batches.
 
 **Also noted:** the same inbox effect loaded cheques only for `upper_management`, not `admin`, while upload is allowed for both.
 

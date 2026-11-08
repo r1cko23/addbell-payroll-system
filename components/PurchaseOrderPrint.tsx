@@ -92,6 +92,7 @@ export const PurchaseOrderPrint = forwardRef<
                 fontSize: "10px",
                 color: COLORS.muted,
                 maxWidth: "240px",
+                textAlign: "left",
               }}
             >
               Please provide this PO number on all invoices and delivery receipts.

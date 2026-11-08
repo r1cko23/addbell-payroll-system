@@ -457,8 +457,8 @@ export const PurchaseOrderPrint = forwardRef<
           <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.subtotal)}</span>
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>VAT Amount</span>
           <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.vatAmount)}</span>
-          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark, marginTop: "2px", paddingTop: "2px", borderTop: "1px solid #333" }}>Total Amount</span>
-          <span style={{ fontSize: "11px", fontWeight: 700, marginTop: "2px", paddingTop: "2px", paddingLeft: "10px", borderTop: "1px solid #333" }}>
+          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark, marginTop: "2px" }}>Total Amount</span>
+          <span style={{ fontSize: "11px", fontWeight: 700, marginTop: "2px", paddingLeft: "10px" }}>
             {formatCurrency(totals.totalAmount)}
           </span>
         </div>

@@ -29,3 +29,17 @@ export function isAdminAssistantRole(role: string | null | undefined): boolean {
 export function fundRequestQueueViewRole(role: string | null | undefined): string {
   return isAdminAssistantRole(role) ? "upper_management" : normalizeUserRole(role);
 }
+
+/** Staff roles an admin can give in Settings; must stay within profiles_role_check. */
+export const ASSIGNABLE_STAFF_ROLES = [
+  "hr",
+  "upper_management",
+  "purchasing_officer",
+  "operations_manager",
+  "admin_assistant",
+  "admin",
+] as const;
+
+export function isAssignableStaffRole(role: unknown): role is (typeof ASSIGNABLE_STAFF_ROLES)[number] {
+  return typeof role === "string" && (ASSIGNABLE_STAFF_ROLES as readonly string[]).includes(role);
+}

@@ -68,23 +68,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Step 2: Delete user from users table
-    const { error: deleteUserError } = await supabaseAdmin
-      .from("users")
-      .delete()
-      .eq("id", userId);
-
-    if (deleteUserError) {
-      console.error("Error deleting user from users table:", deleteUserError);
-      return NextResponse.json(
-        {
-          error: "Failed to delete user record",
-          details: deleteUserError.message,
-        },
-        { status: 500 }
-      );
-    }
-
+    // The profile goes with the auth user (profiles_id_fkey on delete cascade).
     // Clear cache for deleted user
     clearUserRoleCache(userId);
 

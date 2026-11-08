@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import type { Database } from "@/types/database";
 import { verifyAdminAccess, clearUserRoleCache } from "@/lib/api-helpers";
+import { ASSIGNABLE_STAFF_ROLES, isAssignableStaffRole } from "@/lib/user-roles";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse request body
-    const { email, full_name, password, role, ot_groups } = await req.json();
+    const { email, full_name, password, role } = await req.json();
 
     // Validate input - check for empty strings after trim
     const trimmedEmail = email?.trim();
@@ -63,10 +63,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate role
-    const validRoles = ["admin", "hr", "approver", "viewer"];
-    if (!validRoles.includes(role)) {
+    if (!isAssignableStaffRole(role)) {
       return NextResponse.json(
-        { error: `Invalid role. Must be one of: ${validRoles.join(", ")}` },
+        { error: `Invalid role. Must be one of: ${ASSIGNABLE_STAFF_ROLES.join(", ")}` },
         { status: 400 }
       );
     }
@@ -91,22 +90,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Verify we're using service role (should not have a user session)
-    const {
-      data: { user: adminUser },
-    } = await supabaseAdmin.auth.getUser();
-    console.log("Admin client user check:", {
-      hasUser: !!adminUser,
-      userId: adminUser?.id,
-      isServiceRole: !adminUser, // Service role should not have a user session
-    });
-
     // Step 1: Create user in Supabase Auth
     const { data: authData, error: createAuthError } =
       await supabaseAdmin.auth.admin.createUser({
         email: trimmedEmail.toLowerCase(),
         password: trimmedPassword,
         email_confirm: true, // Auto-confirm the user
+        // Role is set on the profile below, never from metadata.
         user_metadata: {
           full_name: trimmedFullName,
         },
@@ -127,56 +117,35 @@ export async function POST(req: NextRequest) {
       userId: authData.user.id,
     });
 
-    // Step 2: Insert user into users table
-    type UserRow = Database["public"]["Tables"]["users"]["Row"];
-    const { data: userData, error: userInsertError } = await supabaseAdmin
-      .from("users")
-      .insert({
+    // Step 2: Make sure the profile has the role and name (the trigger may have run first or not at all).
+    const { data: userData, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert({
         id: authData.user.id,
         email: trimmedEmail.toLowerCase(),
         full_name: trimmedFullName,
-        role: role,
+        role,
         is_active: true,
       })
-      .select()
-      .single<UserRow>();
+      .select("id, email, full_name, role")
+      .single();
 
-    if (userInsertError) {
-      // If user table insert fails, try to clean up auth user
-      console.error("Error inserting user into users table:", userInsertError);
+    if (profileError || !userData) {
+      console.error("Error saving profile:", profileError);
       try {
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
       } catch (cleanupError) {
         console.error("Error cleaning up auth user:", cleanupError);
       }
-
       return NextResponse.json(
         {
           error: "Failed to create user record",
-          details: userInsertError.message,
+          details: profileError?.message || "Unknown error",
         },
         { status: 500 }
       );
     }
 
-    // Step 3: Assign to OT groups if OT Approver/Viewer
-    if ((role === "approver" || role === "viewer") && ot_groups && Array.isArray(ot_groups) && ot_groups.length > 0) {
-      const updateField = role === "approver" ? "approver_id" : "viewer_id";
-
-      for (const groupId of ot_groups) {
-        const { error: groupError } = await supabaseAdmin
-          .from("overtime_groups")
-          .update({ [updateField]: userData.id })
-          .eq("id", groupId);
-
-        if (groupError) {
-          console.error(`Error assigning user to group ${groupId}:`, groupError);
-          // Continue with other groups even if one fails
-        }
-      }
-    }
-
-    // Clear cache for new user
     clearUserRoleCache(userData.id);
 
     return NextResponse.json(

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import type { Database } from "@/types/database";
 import { verifyAdminAccess, clearUserRoleCache } from "@/lib/api-helpers";
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -54,14 +53,12 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
-    type UserRow = Database["public"]["Tables"]["users"]["Row"];
-    // Update user status using service role
     const { data: updatedUser, error: updateError } = await supabaseAdmin
-      .from("users")
-      .update({ is_active })
+      .from("profiles")
+      .update({ is_active, updated_at: new Date().toISOString() })
       .eq("id", userId)
-      .select()
-      .single<UserRow>();
+      .select("id, email, full_name, role, is_active")
+      .single();
 
     if (updateError) {
       console.error("Error updating user status:", updateError);

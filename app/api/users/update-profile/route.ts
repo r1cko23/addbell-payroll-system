@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAdminAccess, clearUserRoleCache } from "@/lib/api-helpers";
+import { ASSIGNABLE_STAFF_ROLES, isAssignableStaffRole } from "@/lib/user-roles";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -41,6 +42,12 @@ export async function PATCH(req: NextRequest) {
       updates.full_name = full_name.trim();
     }
     if (typeof role === "string" && role.trim()) {
+      if (!isAssignableStaffRole(role.trim())) {
+        return NextResponse.json(
+          { error: `Invalid role. Must be one of: ${ASSIGNABLE_STAFF_ROLES.join(", ")}` },
+          { status: 400 }
+        );
+      }
       updates.role = role.trim();
     }
     if (typeof can_access_salary === "boolean") {

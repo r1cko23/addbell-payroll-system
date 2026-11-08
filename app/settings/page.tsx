@@ -23,6 +23,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
 import { formatDateDisplay } from "@/utils/holidays";
 import { formatRoleName } from "@/lib/formatRoleName";
+import { ASSIGNABLE_STAFF_ROLES } from "@/lib/user-roles";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -256,7 +257,6 @@ export default function SettingsPage() {
 
     setCreatingUser(true);
     try {
-      console.log("Sending request to /api/users/create", { newUser });
       const response = await fetch("/api/users/create", {
         method: "POST",
         headers: {
@@ -1128,10 +1128,11 @@ export default function SettingsPage() {
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hr">HR</SelectItem>
-                    <SelectItem value="approver">Approver</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                    {ASSIGNABLE_STAFF_ROLES.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {formatRoleName(role)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </VStack>

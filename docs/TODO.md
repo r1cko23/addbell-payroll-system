@@ -27,10 +27,11 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Later
 
-15. `docs/RLS_LOCKDOWN_PLAN.md` "Not covered" still says portal passwords are plain text; they're hashed now (16c7074). Lines 11 and 36 are also stale: `record_employee_first_login` and `get_my_role` are no longer callable signed out.
+Nothing right now.
 
 ## Done
 
+- 2026-11-08 `docs/RLS_LOCKDOWN_PLAN.md` brought up to date: passwords hashed, storage reviewed, and the list of functions callable signed out is down to the portal bundy check.
 - 2026-11-08 Retired `/clock`, an unlinked staff page that punched any employee with a location check that always failed. Page deleted; only the service role can call `is_location_allowed`. Checked: a signed-out call is refused, the portal bundy check still works signed out, and it is now the only definer function callable signed out (0ea2571, 20261108120000).
 - 2026-11-08 Long `.in()` lists: the approval routes load one week at a time (24 requests at most so far), so no change. The portal OT route loads an employee's whole history and now batches documents and punches with `selectInBatches` (`lib/supabase-in-batches.ts`), and shows an error instead of quietly dropping them. The cheque loader uses the same helper.
 - 2026-11-08 Cheque upload is all or nothing: linked requests are checked before saving, and a failed copy to the peers removes the source cheque and tells the uploader to retry (`lib/__tests__/payment-check-confirm-route.test.ts`, `docs/GOTCHAS.md` #2). Not backfilled: production has 35 payee groups with the cheque on only some requests, but separate cheques and later approvals explain most of them, and old link failures were never logged.

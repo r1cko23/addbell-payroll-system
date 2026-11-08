@@ -1,6 +1,7 @@
 export const PURCHASE_ORDER_PAYMENT_TERM_OPTIONS = [
-  "30% DP | 60% PB | 90% PB | 10% Ret (2 weeks)",
-  "50% DP | 40% PB | 10% Ret (2 weeks)",
+  "30% DP | PB at 60/90% | 10% Ret (2 wks)",
+  "DP at 15/30% | PB at 45/60/75/90% | 10% Ret (2 wks)",
+  "50% DP | 40% PB | 10% Ret (2 wks)",
   "50% DP | 50% Upon Completion",
   "Upon Completion",
   "30 DAYS",

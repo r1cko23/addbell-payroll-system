@@ -438,8 +438,28 @@ export const PurchaseOrderPrint = forwardRef<
         </table>
       </div>
 
-      {/* Totals */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
+      {/* Payment terms beside the totals */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", marginTop: "6px" }}>
+        <div className="po-payment-box" style={{ flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              color: COLORS.dark,
+              letterSpacing: "0.03em",
+              display: "block",
+              marginBottom: "2px",
+            }}
+          >
+            Payment Terms
+          </span>
+          <div style={{ fontSize: "10px", lineHeight: 1.4 }}>
+            {data.paymentTerms.map((term, i) => (
+              <div key={i}>• {term}</div>
+            ))}
+          </div>
+        </div>
         <div
           className="po-total-box"
           style={{
@@ -462,38 +482,6 @@ export const PurchaseOrderPrint = forwardRef<
           <span style={{ fontSize: "11px", fontWeight: 700, paddingLeft: "8px" }}>
             {formatCurrency(totals.totalAmount)}
           </span>
-        </div>
-      </div>
-
-      {/* Payment Terms - print: border only */}
-      <div
-        className="po-payment-box"
-        style={{
-          marginTop: "16px",
-          padding: "10px 12px",
-          border: "1px solid #333",
-          borderRadius: "4px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "9px",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            color: COLORS.dark,
-            letterSpacing: "0.03em",
-            display: "block",
-            marginBottom: "6px",
-          }}
-        >
-          Payment Terms
-        </span>
-        <div style={{ fontSize: "10px", lineHeight: 1.7 }}>
-          {data.paymentTerms.map((term, i) => (
-            <div key={i} style={{ marginBottom: "4px" }}>
-              • {term}
-            </div>
-          ))}
         </div>
       </div>
 

@@ -137,7 +137,6 @@ export function getFundRequestSeparateChequePrompt(input: {
 export type FundRequestPaymentCheckUploadResult = {
   documents: FundRequestDocumentSummary[];
   error?: string;
-  warning?: string;
 };
 
 export const ALLOWED_PAYMENT_CHECK_MIME_TYPES = [
@@ -289,7 +288,6 @@ export async function uploadFundRequestPaymentCheck(
 
   return {
     documents: [result.document, ...(result.linkedDocuments ?? [])],
-    warning: result.warning,
   };
 }
 

@@ -10,6 +10,7 @@ import {
 } from "@/lib/fund-request-api";
 import { getCurrentUserRole } from "@/lib/api-helpers";
 import {
+  deleteFundRequestDocumentById,
   linkFundRequestDocumentToRequests,
   registerFundRequestDocument,
 } from "@/lib/fund-request-document-storage";
@@ -102,29 +103,8 @@ export async function POST(req: NextRequest) {
       employeeId = body.requested_by.trim();
     }
 
-    const result = await registerFundRequestDocument(admin, {
-      documentId,
-      fundRequestId: requestId,
-      employeeId,
-      fileName,
-      fileType,
-      fileSize,
-      storagePath,
-      documentType,
-      uploadedBy: documentType === "payment_check" ? authUser?.id ?? null : null,
-    });
-
-    if ("error" in result) {
-      if (isSchemaMissingTableOrRelationError({ message: result.error })) {
-        return NextResponse.json(
-          { error: "Document storage is not available. Apply database migrations." },
-          { status: 503 }
-        );
-      }
-      return NextResponse.json({ error: result.error }, { status: result.status });
-    }
-
-    let linkedDocuments: Record<string, unknown>[] = [];
+    // Check every linked request before saving anything, so a bad peer leaves no half-saved cheque.
+    const linkedRequests: Array<{ fundRequestId: string; employeeId: string }> = [];
     if (
       documentType === "payment_check" &&
       Array.isArray(body.linked_request_ids) &&
@@ -152,7 +132,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Request not found" }, { status: 404 });
       }
 
-      const linkedRequests: Array<{ fundRequestId: string; employeeId: string }> = [];
       for (const linkedId of uniqueLinkedIds) {
         const linkedAccess = await assertApproverCanUploadPaymentCheck(
           admin,
@@ -194,7 +173,32 @@ export async function POST(req: NextRequest) {
           employeeId: linkedAccess.existing.requested_by,
         });
       }
+    }
 
+    const result = await registerFundRequestDocument(admin, {
+      documentId,
+      fundRequestId: requestId,
+      employeeId,
+      fileName,
+      fileType,
+      fileSize,
+      storagePath,
+      documentType,
+      uploadedBy: documentType === "payment_check" ? authUser?.id ?? null : null,
+    });
+
+    if ("error" in result) {
+      if (isSchemaMissingTableOrRelationError({ message: result.error })) {
+        return NextResponse.json(
+          { error: "Document storage is not available. Apply database migrations." },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    let linkedDocuments: Record<string, unknown>[] = [];
+    if (linkedRequests.length > 0) {
       const linkResult = await linkFundRequestDocumentToRequests(admin, {
         sourceDocumentId: documentId,
         storagePath,
@@ -207,13 +211,12 @@ export async function POST(req: NextRequest) {
       });
 
       if ("error" in linkResult) {
-        // The source request already has the file. Return it so the UI updates
-        // instead of showing a duplicate-key error that forces a refresh.
-        return NextResponse.json({
-          document: result.document,
-          linked_documents: [],
-          warning: linkResult.error,
-        });
+        // All or nothing: a cheque on only some requests in the group looks like a lost upload.
+        await deleteFundRequestDocumentById(admin, documentId);
+        return NextResponse.json(
+          { error: "Couldn't attach the payment check to every request for this payee. Nothing was saved. Try the upload again." },
+          { status: 500 }
+        );
       }
       linkedDocuments = linkResult.documents;
     }

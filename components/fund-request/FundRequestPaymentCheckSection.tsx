@@ -178,15 +178,11 @@ export function FundRequestPaymentCheckSection({
     }
 
     onDocumentsChange([...documents, ...result.documents]);
-    if (result.warning) {
-      toast.success("Payment check uploaded");
-    } else {
-      toast.success(
-        appliesToMultiple
-          ? `Payment check uploaded for ${linkedRequestIds.length} requests`
-          : "Payment check uploaded"
-      );
-    }
+    toast.success(
+      appliesToMultiple
+        ? `Payment check uploaded for ${linkedRequestIds.length} requests`
+        : "Payment check uploaded"
+    );
     resetInput();
   }
 

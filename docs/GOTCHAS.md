@@ -19,9 +19,11 @@ Reproduced: the same URL succeeds with the anon key, fails once ~1.2 KB of extra
 
 **Fixed:** `loadFundRequestPaymentCheckDocumentsByRequestId` in `lib/fund-request-payment-check.ts` sends 100 IDs per request. The inbox keeps its current cheques and shows a toast if a load fails, and it now loads cheques for `admin` too. Test: `utils/__tests__/fund-request-payment-check-loader.test.ts`.
 
-## 2. Payment cheque upload is two steps and can partly succeed
+## 2. Payment cheque upload is two steps (fixed 2026-11-08)
 
-`/documents/confirm` registers the source row first, then links peer requests. If a peer fails validation after that, the route returns an error while the source row is already saved. If linking fails, the source keeps the cheque and the peers don't (the route returns a `warning`). When cheques are "missing" on some requests in a payee group, check this before anything else.
+`/documents/confirm` saves one cheque on the source request, then copies it to the other requests for the same payee and cutoff. It used to save the source before checking the peers, and kept the source when copying failed, so a payee group could end up with the cheque on only some requests. Now every peer is checked before anything is saved, and if copying fails the source row and file are removed and the uploader sees "Nothing was saved". Keep it all or nothing (`lib/__tests__/payment-check-confirm-route.test.ts`).
+
+A group with a cheque on only some requests can still be on purpose: a request printed on its own cheque, or one approved after the cheque went up.
 
 ## 3. `admin` ≠ `upper_management`
 

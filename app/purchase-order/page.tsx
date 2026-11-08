@@ -72,6 +72,7 @@ import { Printer, Plus, Trash2, FileDown, Hash, Save, Search, ArrowLeft, List } 
 import { toast } from "sonner";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { normalizePOData } from "@/utils/po-format";
+import { PRINT_NO_FIND_HIGHLIGHT_CSS } from "@/lib/print-find-highlight";
 import { PO_VAT_MODES, poVatTotals, type PoVatMode } from "@/lib/po-vat";
 import { primaryVendorEmail, primaryVendorPhone } from "@/lib/vendor-contacts";
 
@@ -443,7 +444,7 @@ export default function PurchaseOrderPage() {
     doc.open();
     doc.write(`<!DOCTYPE html><html><head><base href="${origin}/" /><title>${purchaseOrderPrintHtmlTitle(printNameInput)}</title>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      <style>*{box-sizing:border-box}body{font-family:'Plus Jakarta Sans',sans-serif;margin:0;padding:0;font-size:11px;color:#1e293b}img{max-width:240px;height:auto}table{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed}@page{size:A4;margin:12mm}@media print{body{margin:0;padding:0}.po-print-root{max-width:186mm!important;width:100%!important;padding:0 8mm!important}.po-table-header th{background:#e8e8e8!important}}</style>
+      <style>*{box-sizing:border-box}body{font-family:'Plus Jakarta Sans',sans-serif;margin:0;padding:0;font-size:11px;color:#1e293b}img{max-width:240px;height:auto}table{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed}@page{size:A4;margin:12mm}@media print{body{margin:0;padding:0}.po-print-root{max-width:186mm!important;width:100%!important;padding:0 8mm!important}.po-table-header th{background:#e8e8e8!important}}${PRINT_NO_FIND_HIGHLIGHT_CSS}</style>
       </head><body>${printContent}</body></html>`);
     doc.close();
     const printWin = iframe.contentWindow;

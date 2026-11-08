@@ -1,3 +1,4 @@
+import { PRINT_NO_FIND_HIGHLIGHT_CSS } from "@/lib/print-find-highlight";
 import {
   applyCheckPrintOffset,
   buildCheckPrintContent,
@@ -180,6 +181,7 @@ export function buildPhpCheckPrintHtml(options: {
       overflow: hidden;
     }
     .print-page div { color: #000 !important; }
+    ${PRINT_NO_FIND_HIGHLIGHT_CSS}
     @page {
       size: ${pageW}mm ${pageH}mm;
       margin: 0;

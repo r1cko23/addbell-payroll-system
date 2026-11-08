@@ -16,7 +16,6 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 ## Next
 
 16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
-19. **Profile picture upload** (Claude → You). Code fixed: uploads and removals go through `/api/profile-picture`, which checks the staff login or the signed portal session and writes with the service role (staff → `profiles.avatar_url`, employees → `employees.profile_picture_url`; `lib/__tests__/profile-picture-route.test.ts`). The portal header and Info page now show the saved picture. Deployed and bucket created (checked: public, images only, 200 KB, signed-out visitors can neither list nor upload). **Waiting on:** you try an upload and a remove on Settings and on the portal Info page.
 
 ## Decisions for HR / payroll (You)
 
@@ -35,6 +34,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Done
 
+- 2026-11-08 Profile picture upload works again: Settings and the portal Info page upload through `/api/profile-picture` (staff login or signed portal session, service role) into the new `profile-pictures` bucket; portal header and Info page show the picture. Checked in the live app by you: upload and remove on both pages (727bbdf, 20261108100000).
 - 2026-11-08 Storage bucket rules: `fund-request-documents` (the only bucket) now accepts only pdf/doc/docx/jpeg/png/webp, and its read policy skips deactivated staff. Checked: admin, upper management and purchasing officer read all 386 linked files, employee-role login reads 0 (20261108090000).
 - 2026-11-07 First-login route takes the employee from the signed portal session and calls `record_employee_first_login` with the service role; signed-out and signed-in API access to the function removed. Checked: anon call returns 401, service role can still run it, signed-out-callable definer functions down to the two location checks (62bfe1a, 20261107150000).
 - 2026-11-07 Security advisor clean-up: `search_path` pinned on 17 functions (warning count 17 → 0); signed-out access removed from 11 SECURITY DEFINER functions (anon-callable 14 → 3, the three kept on purpose). Checked: anon blocked from `get_my_role` / `approve_failure_to_log`, bundy location check and server time still work signed out, staff role helper and RLS reads still work (20261107140000).

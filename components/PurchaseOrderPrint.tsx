@@ -445,9 +445,9 @@ export const PurchaseOrderPrint = forwardRef<
           style={{
             display: "grid",
             gridTemplateColumns: "auto auto",
-            gridAutoRows: "15px",
+            gridAutoRows: "11px",
             alignItems: "center",
-            padding: "3px 8px",
+            padding: "2px 6px",
             border: "1px solid #333",
             borderRadius: "4px",
             textAlign: "right",
@@ -455,11 +455,11 @@ export const PurchaseOrderPrint = forwardRef<
           }}
         >
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>Sub-Total</span>
-          <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.subtotal)}</span>
+          <span style={{ fontSize: "9px", paddingLeft: "8px" }}>{formatCurrency(totals.subtotal)}</span>
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>VAT Amount</span>
-          <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.vatAmount)}</span>
+          <span style={{ fontSize: "9px", paddingLeft: "8px" }}>{formatCurrency(totals.vatAmount)}</span>
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>Total Amount</span>
-          <span style={{ fontSize: "11px", fontWeight: 700, paddingLeft: "10px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, paddingLeft: "8px" }}>
             {formatCurrency(totals.totalAmount)}
           </span>
         </div>

@@ -445,20 +445,21 @@ export const PurchaseOrderPrint = forwardRef<
           style={{
             display: "grid",
             gridTemplateColumns: "auto auto",
-            alignItems: "baseline",
+            gridAutoRows: "15px",
+            alignItems: "center",
             padding: "3px 8px",
             border: "1px solid #333",
             borderRadius: "4px",
             textAlign: "right",
-            lineHeight: 1.25,
+            lineHeight: 1,
           }}
         >
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>Sub-Total</span>
           <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.subtotal)}</span>
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>VAT Amount</span>
           <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.vatAmount)}</span>
-          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark, marginTop: "2px" }}>Total Amount</span>
-          <span style={{ fontSize: "11px", fontWeight: 700, marginTop: "2px", paddingLeft: "10px" }}>
+          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>Total Amount</span>
+          <span style={{ fontSize: "11px", fontWeight: 700, paddingLeft: "10px" }}>
             {formatCurrency(totals.totalAmount)}
           </span>
         </div>

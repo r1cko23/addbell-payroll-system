@@ -62,7 +62,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -699,7 +701,17 @@ export default function PurchaseOrderPage() {
                 <div className="flex w-full flex-col items-start gap-1.5 sm:w-[220px]">
                   <Select value={selectedVendorId} onValueChange={handleSelectVendor}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Select vendor..." /></SelectTrigger>
-                    <SelectContent>{vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {([["supplier", "Suppliers"], ["subcontractor", "Subcontractors"]] as const).map(([type, label]) => {
+                        const group = vendors.filter((v) => v.type === type);
+                        return group.length ? (
+                          <SelectGroup key={type}>
+                            <SelectLabel>{label}</SelectLabel>
+                            {group.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                          </SelectGroup>
+                        ) : null;
+                      })}
+                    </SelectContent>
                   </Select>
                   {canCreateVendors ? (
                     <button

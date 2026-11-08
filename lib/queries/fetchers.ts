@@ -46,15 +46,16 @@ export async function fetchProjectsForPO() {
   return data ?? [];
 }
 
+/** Suppliers and subcontractors a PO can be issued to. */
 export async function fetchActiveSuppliersForPO() {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("vendors")
     .select(
-      "id, name, contact_person, tin, address, phone, email, phones, emails"
+      "id, type, name, contact_person, tin, address, phone, email, phones, emails"
     )
     .eq("is_active", true)
-    .eq("type", "supplier")
+    .in("type", ["supplier", "subcontractor"])
     .order("name");
 
   if (error) throw error;

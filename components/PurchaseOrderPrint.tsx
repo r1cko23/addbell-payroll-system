@@ -439,27 +439,26 @@ export const PurchaseOrderPrint = forwardRef<
       </div>
 
       {/* Totals */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
         <div
           className="po-total-box"
           style={{
             display: "grid",
             gridTemplateColumns: "auto auto",
-            columnGap: "16px",
-            rowGap: "2px",
             alignItems: "baseline",
-            padding: "5px 10px",
+            padding: "3px 8px",
             border: "1px solid #333",
             borderRadius: "4px",
             textAlign: "right",
+            lineHeight: 1.25,
           }}
         >
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>Sub-Total</span>
-          <span style={{ fontSize: "10px" }}>{formatCurrency(totals.subtotal)}</span>
+          <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.subtotal)}</span>
           <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark }}>VAT Amount</span>
-          <span style={{ fontSize: "10px" }}>{formatCurrency(totals.vatAmount)}</span>
-          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark, paddingTop: "3px", borderTop: "1px solid #333" }}>Total Amount</span>
-          <span style={{ fontSize: "12px", fontWeight: 700, paddingTop: "3px", borderTop: "1px solid #333" }}>
+          <span style={{ fontSize: "9px", paddingLeft: "10px" }}>{formatCurrency(totals.vatAmount)}</span>
+          <span style={{ fontSize: "8px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", color: COLORS.dark, marginTop: "2px", paddingTop: "2px", borderTop: "1px solid #333" }}>Total Amount</span>
+          <span style={{ fontSize: "11px", fontWeight: 700, marginTop: "2px", paddingTop: "2px", paddingLeft: "10px", borderTop: "1px solid #333" }}>
             {formatCurrency(totals.totalAmount)}
           </span>
         </div>

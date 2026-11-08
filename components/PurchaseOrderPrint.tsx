@@ -73,7 +73,7 @@ export const PurchaseOrderPrint = forwardRef<
               style={{ objectFit: "contain", display: "block", width: "220px", height: "auto" }}
             />
           </div>
-          <div style={{ textAlign: "right" }} className="po-title">
+          <div style={{ textAlign: "left" }} className="po-title">
             <h1
               style={{
                 margin: 0,
@@ -92,7 +92,6 @@ export const PurchaseOrderPrint = forwardRef<
                 fontSize: "10px",
                 color: COLORS.muted,
                 maxWidth: "240px",
-                textAlign: "left",
               }}
             >
               Please provide this PO number on all invoices and delivery receipts.

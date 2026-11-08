@@ -60,8 +60,10 @@ type FundRequestClientGroupedInboxProps = {
     action: FundRequestDisposalAction
   ) => void;
   bulkApproving: boolean;
-  onApproveAll: () => void;
+  /** Omit to hide "Approve all" (read-only viewers such as the admin assistant). */
+  onApproveAll?: () => void;
   canUploadPaymentCheck?: (row: FundRequestInboxRow) => boolean;
+  canDeletePaymentCheck?: (row: FundRequestInboxRow) => boolean;
   paymentCheckDocumentsByRequestId?: Record<string, FundRequestDocumentSummary[]>;
   onPaymentCheckDocumentsChangeForGroup?: (
     requestIds: string[],
@@ -293,11 +295,13 @@ function GroupedInboxPaymentLines({ summary }: GroupedInboxPaymentLinesProps) {
 function GroupedInboxPaymentCheck({
   group,
   canUploadPaymentCheck,
+  canDeletePaymentCheck,
   paymentCheckDocumentsByRequestId,
   onPaymentCheckDocumentsChangeForGroup,
 }: {
   group: ReturnType<typeof groupFundRequestsByClient>[number];
   canUploadPaymentCheck?: (row: FundRequestInboxRow) => boolean;
+  canDeletePaymentCheck?: (row: FundRequestInboxRow) => boolean;
   paymentCheckDocumentsByRequestId: Record<string, FundRequestDocumentSummary[]>;
   onPaymentCheckDocumentsChangeForGroup?: (
     requestIds: string[],
@@ -324,7 +328,8 @@ function GroupedInboxPaymentCheck({
     canUploadPaymentCheck?.(group.requests[0]!) &&
       group.requests.some((request) => canUploadPaymentCheck?.(request))
   );
-  const canDelete = canUpload;
+  const canDelete =
+    canUpload && group.requests.some((request) => canDeletePaymentCheck?.(request));
   const primaryRequestId = group.requests[0]?.id;
 
   if (!primaryRequestId || (!canUpload && groupDocuments.length === 0)) {
@@ -375,6 +380,7 @@ export function FundRequestClientGroupedInbox({
   bulkApproving,
   onApproveAll,
   canUploadPaymentCheck,
+  canDeletePaymentCheck,
   paymentCheckDocumentsByRequestId = {},
   onPaymentCheckDocumentsChangeForGroup,
   onRequestMovedToCurrentCutoff,
@@ -444,6 +450,7 @@ export function FundRequestClientGroupedInbox({
                         <GroupedInboxPaymentCheck
                           group={group}
                           canUploadPaymentCheck={canUploadPaymentCheck}
+                          canDeletePaymentCheck={canDeletePaymentCheck}
                           paymentCheckDocumentsByRequestId={
                             paymentCheckDocumentsByRequestId
                           }
@@ -614,6 +621,7 @@ export function FundRequestClientGroupedInbox({
               <GroupedInboxPaymentCheck
                 group={group}
                 canUploadPaymentCheck={canUploadPaymentCheck}
+                canDeletePaymentCheck={canDeletePaymentCheck}
                 paymentCheckDocumentsByRequestId={paymentCheckDocumentsByRequestId}
                 onPaymentCheckDocumentsChangeForGroup={
                   onPaymentCheckDocumentsChangeForGroup
@@ -687,24 +695,26 @@ export function FundRequestClientGroupedInbox({
           ))}
         </div>
 
-        <div className="flex justify-end border-t bg-muted/20 px-4 py-3">
-          <Button
-            type="button"
-            size="sm"
-            className="w-full shrink-0 sm:w-auto"
-            disabled={bulkApproving || rows.length === 0}
-            onClick={onApproveAll}
-          >
-            {bulkApproving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Approving…
-              </>
-            ) : (
-              `Approve all (${rows.length})`
-            )}
-          </Button>
-        </div>
+        {onApproveAll ? (
+          <div className="flex justify-end border-t bg-muted/20 px-4 py-3">
+            <Button
+              type="button"
+              size="sm"
+              className="w-full shrink-0 sm:w-auto"
+              disabled={bulkApproving || rows.length === 0}
+              onClick={onApproveAll}
+            >
+              {bulkApproving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Approving…
+                </>
+              ) : (
+                `Approve all (${rows.length})`
+              )}
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

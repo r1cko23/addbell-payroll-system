@@ -6,11 +6,11 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Now
 
-Nothing waiting on Claude.
+22. **Admin assistant role** (You, then Claude checks). Code is in; run `supabase/migrations/20261108140000_admin_assistant_role.sql` in the SQL Editor, create the login for the new admin assistant in Supabase (Authentication → Add user), then run the role SQL Claude gave you. Claude then checks the role in production (queue visible, approve refused, cheque upload yes, delete no).
 
 ## Next
 
-Nothing waiting on Claude.
+21. **Settings → Add user is broken** (Claude). `app/api/users/create` inserts into a `users` table that no longer exists (profiles replaced it), and only offers hr / approver / viewer / admin, while `profiles_role_check` doesn't allow approver or viewer. New staff logins have to be made in Supabase and roled by SQL until this is fixed.
 
 ## Decisions for HR / payroll (You)
 

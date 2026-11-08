@@ -71,7 +71,11 @@ import {
   validateFundRequestReturnCorrection,
   type FundRequestReturnCorrectionInput,
 } from "@/lib/fund-request-return-correction";
-import { normalizeUserRole } from "@/lib/user-roles";
+import {
+  fundRequestQueueViewRole,
+  isAdminAssistantRole,
+  normalizeUserRole,
+} from "@/lib/user-roles";
 import type {
   FundRequestCutoffAdjustmentEntry,
   FundRequestRow,
@@ -86,6 +90,7 @@ import {
 import { getFundRequestListProjectLabel, getFundRequestListPurposeLabel } from "@/lib/fund-request-project-details";
 import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
 import {
+  canDeleteFundRequestPaymentCheck,
   canUploadFundRequestPaymentCheck,
   canViewFundRequestPaymentChecksInInbox,
   loadFundRequestPaymentCheckDocumentsByRequestId,
@@ -276,6 +281,9 @@ export function FundRequestInbox({
 }) {
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
+  // Whose queue to list. Admin assistants see Upper Management's; every action check below uses profile.role.
+  const queueRole = fundRequestQueueViewRole(profile?.role);
+  const readOnlyQueue = isAdminAssistantRole(profile?.role);
   const userId = profile?.id ?? null;
   const [allRows, setAllRows] = useState<FundRequestInboxRow[]>([]);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -465,18 +473,18 @@ export function FundRequestInbox({
         fundRequestBelongsToApproverCutoff(
           row,
           selectedCutoff,
-          profile?.role
+          queueRole
         ) &&
-        matchesFundRequestRoleCutoffFilter(row, "all", profile?.role, summaryContext)
+        matchesFundRequestRoleCutoffFilter(row, "all", queueRole, summaryContext)
     );
-  }, [allRows, selectedCutoff, profile?.role, summaryContext]);
+  }, [allRows, selectedCutoff, queueRole, summaryContext]);
 
   const filteredRows = useMemo(() => {
     let list = cutoffScopedRows.filter((row) =>
       matchesFundRequestRoleCutoffFilter(
         row,
         outcomeFilter,
-        profile?.role,
+        queueRole,
         summaryContext
       )
     );
@@ -491,7 +499,7 @@ export function FundRequestInbox({
   }, [
     cutoffScopedRows,
     outcomeFilter,
-    profile?.role,
+    queueRole,
     summaryContext,
     searchTerm,
     requesterInfoById,
@@ -510,10 +518,10 @@ export function FundRequestInbox({
     return summarizeFundRequestsForRoleCutoff(
       cutoffScopedRows,
       selectedCutoff,
-      profile?.role,
+      queueRole,
       summaryContext
     );
-  }, [cutoffScopedRows, selectedCutoff, profile?.role, summaryContext]);
+  }, [cutoffScopedRows, selectedCutoff, queueRole, summaryContext]);
 
   const approvedExportRows = useMemo(
     () =>
@@ -521,11 +529,11 @@ export function FundRequestInbox({
         matchesFundRequestRoleCutoffFilter(
           row,
           "approved",
-          profile?.role,
+          queueRole,
           summaryContext
         )
       ),
-    [cutoffScopedRows, profile?.role, summaryContext]
+    [cutoffScopedRows, queueRole, summaryContext]
   );
 
   const cutoffExportLabel = useMemo(() => {
@@ -800,7 +808,7 @@ export function FundRequestInbox({
     return <div className="p-6 text-muted-foreground text-sm">Loading…</div>;
   }
 
-  if (getActionableStatuses().length === 0) {
+  if (getActionableFundRequestStatuses(queueRole).length === 0) {
     return (
       <div className="p-8 text-center text-muted-foreground">
         You do not have permission to manage fund request approvals.
@@ -810,7 +818,7 @@ export function FundRequestInbox({
 
   const actionableStatuses = getActionableStatuses();
   const normalizedInboxRole = normalizeUserRole(profile?.role);
-  const isUpperManagement = normalizedInboxRole === "upper_management";
+  const isUpperManagement = queueRole === "upper_management";
   const approvalDeadlineNote =
     normalizedInboxRole === "purchasing_officer"
       ? "Purchasing has until the end of Friday to approve before auto-cancel."
@@ -819,8 +827,8 @@ export function FundRequestInbox({
         : null;
   const useClientGroupedView = isUpperManagement;
   const summaryLoadingLabel = loading ? "Loading..." : undefined;
-  const metricLabels = getFundRequestRoleCutoffMetricLabels(profile?.role);
-  const filterOptions = getFundRequestRoleCutoffFilterOptions(profile?.role);
+  const metricLabels = getFundRequestRoleCutoffMetricLabels(queueRole);
+  const filterOptions = getFundRequestRoleCutoffFilterOptions(queueRole);
   const selectedFilterLabel =
     filterOptions.find((option) => option.value === outcomeFilter)?.label ?? "All";
 
@@ -958,6 +966,9 @@ export function FundRequestInbox({
           canUploadPaymentCheck={(row) =>
             canUploadFundRequestPaymentCheck(profile?.role, row.status)
           }
+          canDeletePaymentCheck={(row) =>
+            canDeleteFundRequestPaymentCheck(profile?.role, row.status)
+          }
           paymentCheckDocumentsByRequestId={paymentCheckDocumentsByRequestId}
           onPaymentCheckDocumentsChangeForGroup={(requestIds, documents) => {
             setPaymentCheckDocumentsByRequestId((current) => {
@@ -995,7 +1006,7 @@ export function FundRequestInbox({
           onConfirmDisposal={handleDisposal}
           onRequestMovedToCurrentCutoff={handleRequestMovedToCurrentCutoff}
           bulkApproving={bulkApproving}
-          onApproveAll={() =>
+          onApproveAll={readOnlyQueue ? undefined : () =>
             setPendingApprove({
               kind: "all",
               requests: filteredRows.filter((row) =>

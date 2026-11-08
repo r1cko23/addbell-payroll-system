@@ -138,6 +138,22 @@ This document outlines the role-based access control (RBAC) system tailored to A
 
 ---
 
+### 4a. Admin Assistant
+**Role Code:** `admin_assistant` (added 2026-11-08)
+**Description:** Helps Upper Management with cheques on fund requests
+
+**Key Permissions:**
+- ✅ View the Upper Management fund request queue (For approval) and open each request
+- ✅ Upload cheques on requests awaiting or past final approval
+- ✅ Download cheques and supporting documents
+- ❌ Cannot approve, reject, return to purchasing, approve all, move cutoffs or undo approvals
+- ❌ Cannot delete cheques (Upper Management or admin removes a wrong upload)
+- ❌ No other pages: every other path redirects to Fund requests
+
+**Where it is enforced:** `fundRequestQueueViewRole` and `isAdminAssistantRole` in `lib/user-roles.ts` (queue view only), `lib/fund-request-payment-check.ts` and `lib/fund-request-api.ts` (cheque upload yes, delete no), `middleware.ts` (fund request pages only), `DEFAULT_PERMISSIONS.admin_assistant` (fund_requests read only) and migration `20261108140000_admin_assistant_role.sql` (RLS).
+
+---
+
 ### 5. Employee
 **Role Code:** `employee` (via employee portal)
 **Description:** Regular employees with access to own data and project assignments

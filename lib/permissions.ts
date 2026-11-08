@@ -205,10 +205,21 @@ const UPPER_MANAGEMENT_PERMISSIONS: UserPermissions = {
   vendors: { create: false, read: true, update: false, delete: false },
 };
 
+const NO_ACCESS: ModulePermissions = { create: false, read: false, update: false, delete: false };
+
+// Admin assistant: reads fund requests only (Upper Management queue view, cheque upload/download).
+const ADMIN_ASSISTANT_PERMISSIONS = {
+  ...(Object.fromEntries(
+    Object.values(MODULES).map((module) => [module, { ...NO_ACCESS }])
+  ) as UserPermissions),
+  fund_requests: { create: false, read: true, update: false, delete: false },
+};
+
 // Default permissions by role
 export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
   admin: ADMIN_PERMISSIONS,
   upper_management: UPPER_MANAGEMENT_PERMISSIONS,
+  admin_assistant: ADMIN_ASSISTANT_PERMISSIONS,
   hr: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: true, read: true, update: true, delete: false },

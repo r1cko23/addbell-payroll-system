@@ -16,3 +16,16 @@ export function isOvertimeGroupQueueApproverRole(
     normalized === "operations_manager" || normalized === "purchasing_officer"
   );
 }
+
+/** Admin assistant: reads the Upper Management fund request queue and uploads/downloads cheques. Nothing else. */
+export function isAdminAssistantRole(role: string | null | undefined): boolean {
+  return normalizeUserRole(role) === "admin_assistant";
+}
+
+/**
+ * Role whose fund request queue this user sees (an admin assistant sees Upper Management's).
+ * For listing and filtering only: approve, reject, return and cutoff checks must use the real role.
+ */
+export function fundRequestQueueViewRole(role: string | null | undefined): string {
+  return isAdminAssistantRole(role) ? "upper_management" : normalizeUserRole(role);
+}

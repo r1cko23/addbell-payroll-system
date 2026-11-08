@@ -9,6 +9,7 @@ export function formatRoleName(role: string): string {
   const roleMap: Record<string, string> = {
     admin: "Admin",
     upper_management: "Upper Management",
+    admin_assistant: "Admin Assistant",
     hr: "HR",
     operations_manager: "Operations Manager",
     project_manager: "Project Manager",

@@ -124,6 +124,17 @@ export async function middleware(req: NextRequest) {
             { userId: user.id, employeeId: userRecord.employee_id ?? null }
           );
 
+          // Admin assistants only use the fund request queue
+          if (
+            userRecord.role === "admin_assistant" &&
+            !pathname.startsWith("/fund-request")
+          ) {
+            const redirectUrl = req.nextUrl.clone();
+            redirectUrl.pathname = "/fund-request";
+            redirectUrl.search = "";
+            return NextResponse.redirect(redirectUrl);
+          }
+
           // Redirect approvers/viewers to allowed pages only
           if (userRecord.role === "approver" || userRecord.role === "viewer") {
             const allowedPaths = [

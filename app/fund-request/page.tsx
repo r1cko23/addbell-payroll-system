@@ -51,6 +51,8 @@ function FundRequestListPageContent() {
   const isUpperManagement = normalizedRole === 'upper_management';
   const isPurchasingOfficer = normalizedRole === 'purchasing_officer';
   const isAdmin = normalizedRole === 'admin';
+  // Admin assistant: Upper Management queue, read-only, plus cheque upload/download.
+  const isAdminAssistant = normalizedRole === 'admin_assistant' && !isPortal;
   const showAllRequestsTab = isPurchasingOfficer || isAdmin;
   const showHistoryTab = isUpperManagement || isPurchasingOfficer || isAdmin;
   const showMyRequestsTab = isApprover && !isUpperManagement;
@@ -162,7 +164,9 @@ function FundRequestListPageContent() {
     router.replace(query ? `${base}?${query}` : base, { scroll: false });
   };
 
-  const fundRequestSubtitle = isApprover
+  const fundRequestSubtitle = isAdminAssistant
+    ? 'Upper Management queue. You can view requests and upload or download cheques.'
+    : isApprover
     ? showMyRequestsTab
       ? 'Review requests pending your approval or view your submitted requests.'
       : showHistoryTab
@@ -266,6 +270,8 @@ function FundRequestListPageContent() {
         ) : (
           <FundRequestInbox />
         )
+      ) : isAdminAssistant ? (
+        <FundRequestInbox />
       ) : (
         <FundRequestMyRequests
           detailHrefBase={base}

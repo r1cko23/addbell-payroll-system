@@ -184,7 +184,7 @@ export async function assertRequesterCanAddDocumentToFundRequest(
   return { existing };
 }
 
-/** Upper Management / admin payment check upload on final approval or after. */
+/** Upper Management / admin / admin assistant payment check upload on final approval or after. */
 export async function assertApproverCanUploadPaymentCheck(
   admin: ReturnType<typeof getAdminClient>,
   authUserId: string | null,
@@ -196,7 +196,11 @@ export async function assertApproverCanUploadPaymentCheck(
   }
 
   const normalizedRole = (role || "").trim().toLowerCase().replace(/\s+/g, "_");
-  if (normalizedRole !== "upper_management" && normalizedRole !== "admin") {
+  if (
+    normalizedRole !== "upper_management" &&
+    normalizedRole !== "admin" &&
+    normalizedRole !== "admin_assistant"
+  ) {
     return { error: "Not authorized to upload payment checks", status: 403 as const };
   }
 
@@ -225,20 +229,26 @@ export async function assertApproverCanUploadPaymentCheck(
   return { existing };
 }
 
-/** Upper Management / admin payment check delete (same access as upload). */
+/** Upper Management / admin payment check delete. The admin assistant can upload but not delete. */
 export async function assertApproverCanDeletePaymentCheck(
   admin: ReturnType<typeof getAdminClient>,
   authUserId: string | null,
   requestId: string,
   role: string | null | undefined
 ) {
+  const normalizedRole = (role || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (authUserId && normalizedRole !== "upper_management" && normalizedRole !== "admin") {
+    return { error: "Not authorized to delete payment checks", status: 403 as const };
+  }
   return assertApproverCanUploadPaymentCheck(admin, authUserId, requestId, role);
 }
 
+// keep in step with the fund_request_documents table and storage read policies
 const FUND_REQUEST_DOCUMENT_VIEWER_ROLES = new Set([
   "hr",
   "admin",
   "upper_management",
+  "admin_assistant",
   "project_manager",
   "operations_manager",
   "purchasing_officer",

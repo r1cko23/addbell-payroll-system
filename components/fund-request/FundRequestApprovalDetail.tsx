@@ -97,6 +97,7 @@ import {
   splitFundRequestDocuments,
 } from "@/components/fund-request/FundRequestPaymentCheckSection";
 import {
+  canDeleteFundRequestPaymentCheck,
   canUploadFundRequestPaymentCheck,
   getFundRequestCombinedChequeAmount,
   getFundRequestPaymentCheckPeerIds,
@@ -1243,7 +1244,7 @@ export function FundRequestApprovalDetail({
                 requestId={request.id}
                 documents={documents}
                 canUpload={canUploadPaymentCheck}
-                canDelete={canUploadPaymentCheck}
+                canDelete={canDeleteFundRequestPaymentCheck(profile?.role, request.status)}
                 linkedRequestIds={linkedPaymentCheckRequestIds}
                 printMode={
                   linkedPaymentCheckRequestIds.length > 1 ? "separate" : "combined"

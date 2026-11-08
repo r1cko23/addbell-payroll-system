@@ -174,21 +174,29 @@ export function isAllowedPaymentCheckFile(file: File): boolean {
   return typeOk || extOk;
 }
 
+const PAYMENT_CHECK_UPLOAD_ROLES = new Set(["upper_management", "admin", "admin_assistant"]);
+
 export function canUploadFundRequestPaymentCheck(
   role: string | null | undefined,
   status: FundRequestRow["status"] | null | undefined
 ): boolean {
-  const normalizedRole = normalizeUserRole(role);
-  if (normalizedRole !== "upper_management" && normalizedRole !== "admin") {
-    return false;
-  }
+  if (!PAYMENT_CHECK_UPLOAD_ROLES.has(normalizeUserRole(role))) return false;
   return status === "purchasing_officer_approved" || status === "management_approved";
+}
+
+/** Removing a cheque stays with Upper Management and admin; the admin assistant can only add them. */
+export function canDeleteFundRequestPaymentCheck(
+  role: string | null | undefined,
+  status: FundRequestRow["status"] | null | undefined
+): boolean {
+  const normalizedRole = normalizeUserRole(role);
+  if (normalizedRole !== "upper_management" && normalizedRole !== "admin") return false;
+  return canUploadFundRequestPaymentCheck(role, status);
 }
 
 /** Roles that see uploaded cheques in the approval inbox (same roles that can upload them). */
 export function canViewFundRequestPaymentChecksInInbox(role: string | null | undefined): boolean {
-  const normalizedRole = normalizeUserRole(role);
-  return normalizedRole === "upper_management" || normalizedRole === "admin";
+  return PAYMENT_CHECK_UPLOAD_ROLES.has(normalizeUserRole(role));
 }
 
 export async function loadFundRequestPaymentCheckDocumentsByRequestId(

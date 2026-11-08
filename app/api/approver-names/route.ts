@@ -10,6 +10,7 @@ const APPROVAL_ROLES = new Set([
   "hr",
   "admin",
   "upper_management",
+  "admin_assistant",
   "operations_manager",
   "project_manager",
   "purchasing_officer",

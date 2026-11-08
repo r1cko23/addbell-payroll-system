@@ -6,12 +6,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Now
 
-2. **Check the live app** (You). Nobody has done these since the changes went live:
-   - An employee signs in to the portal, including one still on the default ID password (should be asked to change it).
-   - Upper Management / Admin see uploaded cheques in the Fund Request Approval inbox.
-   - HR opens Payroll and creates a payroll run.
-   - A corrected payslip (Aug 19 or Oct 28 run) looks right on screen and in print.
-6. **Turn on leaked-password protection** (You). Supabase dashboard → Authentication → Policies/Passwords. It's the last advisor warning that isn't on purpose.
+6. **Leaked-password protection** (You). Reported turned on 2026-11-08, but the security advisor still listed it as disabled (checked 03:44 UTC). Check that the setting saved under Authentication → Policies/Passwords; Supabase only offers it on the Pro plan and up.
 
 ## Next
 
@@ -31,6 +26,7 @@ Nothing right now.
 
 ## Done
 
+- 2026-11-08 Live app checked by you: portal sign-in (including a default-password account), cheques in the approval inbox, HR creating a payroll run, and a corrected payslip on screen and in print.
 - 2026-11-08 `docs/RLS_LOCKDOWN_PLAN.md` brought up to date: passwords hashed, storage reviewed, and the list of functions callable signed out is down to the portal bundy check.
 - 2026-11-08 Retired `/clock`, an unlinked staff page that punched any employee with a location check that always failed. Page deleted; only the service role can call `is_location_allowed`. Checked: a signed-out call is refused, the portal bundy check still works signed out, and it is now the only definer function callable signed out (0ea2571, 20261108120000).
 - 2026-11-08 Long `.in()` lists: the approval routes load one week at a time (24 requests at most so far), so no change. The portal OT route loads an employee's whole history and now batches documents and punches with `selectInBatches` (`lib/supabase-in-batches.ts`), and shows an error instead of quietly dropping them. The cheque loader uses the same helper.

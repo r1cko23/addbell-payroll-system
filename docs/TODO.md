@@ -6,7 +6,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Now
 
-6. **Leaked-password protection** (You). Reported turned on 2026-11-08, but the security advisor still listed it as disabled (checked 03:44 UTC). Check that the setting saved under Authentication → Policies/Passwords; Supabase only offers it on the Pro plan and up.
+Nothing waiting on Claude.
 
 ## Next
 
@@ -22,7 +22,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Later
 
-Nothing right now.
+6. **Leaked-password protection** (You, recheck). You switched it on 2026-11-08, but the security advisor still reported it off at 03:45 UTC. Rerun the advisor in a day; if it still says off, the setting may not have saved or may need the Pro plan.
 
 ## Done
 

@@ -16,7 +16,6 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 ## Next
 
 16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
-7. **Storage bucket rules** (Claude → You). Reviewed: `fund-request-documents` is the only bucket, private, no browser writes, every document row has its file. `20261108090000_fund_request_documents_bucket_rules.sql` limits uploads to pdf/doc/docx/jpeg/png/webp and stops deactivated staff reading it. **Waiting on:** you run it in the SQL Editor.
 19. **Profile picture upload is broken** (Claude, after you decide). Settings and the portal Info page upload to a `profile-pictures` bucket and call `update_user_profile_picture` / `update_employee_profile_picture`; none of the three exist in production, so every upload fails. Decide: build it properly (bucket + server route behind the portal session) or remove the upload button.
 
 ## Decisions for HR / payroll (You)
@@ -36,6 +35,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Done
 
+- 2026-11-08 Storage bucket rules: `fund-request-documents` (the only bucket) now accepts only pdf/doc/docx/jpeg/png/webp, and its read policy skips deactivated staff. Checked: admin, upper management and purchasing officer read all 386 linked files, employee-role login reads 0 (20261108090000).
 - 2026-11-07 First-login route takes the employee from the signed portal session and calls `record_employee_first_login` with the service role; signed-out and signed-in API access to the function removed. Checked: anon call returns 401, service role can still run it, signed-out-callable definer functions down to the two location checks (62bfe1a, 20261107150000).
 - 2026-11-07 Security advisor clean-up: `search_path` pinned on 17 functions (warning count 17 → 0); signed-out access removed from 11 SECURITY DEFINER functions (anon-callable 14 → 3, the three kept on purpose). Checked: anon blocked from `get_my_role` / `approve_failure_to_log`, bundy location check and server time still work signed out, staff role helper and RLS reads still work (20261107140000).
 - 2026-11-07 Night differential on worked holidays and rest days now uses that day's rate, and the OT rate for night hours that are also overtime (`utils/payroll-calculator.ts`, `utils/__tests__/premium-day-night-diff.test.ts`). No stored payslip had such a day (both breakdown formats checked), so no backfill was needed; it applies to payslips generated from now on.

@@ -47,8 +47,7 @@ export const PurchaseOrderPrint = forwardRef<
       <div
         className="po-header"
         style={{
-          margin: "-12mm -12mm 0 -12mm",
-          padding: "10mm 12mm 10mm",
+          padding: "0 0 5mm",
           borderBottom: "2px solid #333",
           backgroundColor: "#fff",
           overflow: "visible",
@@ -252,9 +251,9 @@ export const PurchaseOrderPrint = forwardRef<
             style={{
               border: `1px solid ${block.borderColor}`,
               borderRadius: "6px",
-              padding: "8px 10px",
+              padding: "6px 10px",
               backgroundColor: block.bg,
-              lineHeight: 1.3,
+              lineHeight: 1.2,
               overflow: "hidden",
             }}
             className={block.title.includes("Vendor") ? "po-vendor-box" : "po-buyer-box"}
@@ -265,7 +264,7 @@ export const PurchaseOrderPrint = forwardRef<
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
-                marginBottom: "4px",
+                marginBottom: "2px",
                 color: COLORS.dark,
               }}
             >

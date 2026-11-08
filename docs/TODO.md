@@ -23,6 +23,7 @@ Nothing waiting on Claude.
 
 ## Done
 
+- 2026-11-08 New purchase order screen shows a live preview of the printed PO beside the form (below it on narrower screens); Print and PDF use the same copy. Checked in the dev app: the preview updates as you type.
 - 2026-11-08 Items 9 and 10 closed by you: the ₱1,620.44 tax on payslip `cdd0f7eb…` was entered by hand and stays as is; a 10-hour regular day stays at 1.25 days (hourly = daily ÷ 8).
 - 2026-11-08 No reprints needed (items 8 and 20 closed): per you, the corrected payslips were already paid and corrected outside the system; the backfills only bring the records in line.
 - 2026-11-08 Night differential on regular-day overtime now uses the OT rate (8f1d302). Backfill applied to 33 payslips, +₱310.78 gross and net, checked against the backup (`docs/backfills/2026-11-regular-day-ot-night-diff.md`).

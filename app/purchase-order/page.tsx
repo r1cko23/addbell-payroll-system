@@ -668,7 +668,8 @@ export default function PurchaseOrderPage() {
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-start">
+      <div className="min-w-0 space-y-6">
         <Card>
           <CardHeader><CardTitle>PO & Project</CardTitle></CardHeader>
           <CardContent className="grid gap-5 sm:grid-cols-2">
@@ -867,8 +868,19 @@ export default function PurchaseOrderPage() {
         </Card>
       </div>
 
-      <div ref={printRef} className="sr-only absolute left-[-9999px] top-0" aria-hidden="true">
-        <PurchaseOrderPrint data={normalizePOData(poData)} />
+      <Card className="min-w-0 2xl:sticky 2xl:top-4">
+        <CardHeader>
+          <CardTitle>Preview</CardTitle>
+          <PageSubtitle>What prints, updated as you type.</PageSubtitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <div className="w-[186mm] rounded-md border shadow-sm">
+            <div ref={printRef}>
+              <PurchaseOrderPrint data={normalizePOData(poData)} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       </div>
 
       <VendorFormDialog

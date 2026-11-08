@@ -56,6 +56,7 @@ export default function EmployeeInfoPage() {
     sss_number?: string | null;
     philhealth_number?: string | null;
     pagibig_number?: string | null;
+    profile_picture_url?: string | null;
     is_active?: boolean | null;
     created_at?: string | null;
   }>(profileKey, profileUrl, { enabled: !!employee?.id });
@@ -110,7 +111,7 @@ export default function EmployeeInfoPage() {
         philhealth_number: profileData.philhealth_number ?? null,
         pagibig_number: profileData.pagibig_number ?? null,
         hmo_provider: null,
-        profile_picture_url: null,
+        profile_picture_url: profileData.profile_picture_url ?? null,
         is_active: profileData.is_active ?? true,
         created_at: profileData.created_at ?? employee.loginTime,
       };

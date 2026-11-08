@@ -90,9 +90,14 @@ export default function EmployeePortalLayout({
     }
 
     async function fetchProfilePicture() {
-      // Schema does not include profile_picture_url on employees — use placeholder
-      profilePictureCacheRef.current[employeeId] = null;
-      setProfilePictureUrl(null);
+      // A missing picture just shows initials, so a failed fetch needs no error.
+      const res = await fetch(
+        `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(employeeId)}`
+      ).catch(() => null);
+      const data = res?.ok ? await res.json().catch(() => null) : null;
+      const url: string | null = data?.profile_picture_url ?? null;
+      profilePictureCacheRef.current[employeeId] = url;
+      setProfilePictureUrl(url);
     }
 
     fetchProfilePicture();

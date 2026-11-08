@@ -64,7 +64,7 @@ interface User {
   is_active: boolean;
   can_access_salary?: boolean | null;
   can_manage_clock_access?: boolean | null;
-  profile_picture_url: string | null;
+  avatar_url: string | null;
   permissions: any | null;
   created_at: string;
   assigned_ot_groups?: {
@@ -434,7 +434,7 @@ export default function SettingsPage() {
           <VStack gap="6" align="center" className="w-full">
             {currentUser?.id ? (
               <ProfilePictureUpload
-                currentPictureUrl={currentUser?.profile_picture_url || null}
+                currentPictureUrl={currentUser?.avatar_url || null}
                 userId={currentUser.id}
                 userName={currentUser?.full_name || "User"}
                 userType="user"

@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         const { data, error } = await admin
           .from("employees")
           .select(
-            "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at, position, employment_type, job_level, shift_start_time, shift_end_time, requires_ot_punch, salary_basis, base_rate, hire_date, positions:position_id ( name )"
+            "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, profile_picture_url, is_active, created_at, position, employment_type, job_level, shift_start_time, shift_end_time, requires_ot_punch, salary_basis, base_rate, hire_date, positions:position_id ( name )"
           )
           .eq("id", employeeId)
           .maybeSingle();
@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
           sss_number: data?.sss_number ?? null,
           philhealth_number: data?.philhealth_number ?? null,
           pagibig_number: data?.pagibig_number ?? null,
+          profile_picture_url: data?.profile_picture_url ?? null,
           is_active: data?.is_active ?? null,
           created_at: data?.created_at ?? null,
           position: data ? resolveEmployeePosition(data as any) : null,

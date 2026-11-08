@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
@@ -34,7 +33,6 @@ export function ProfilePictureUpload({
   size = "md",
   className,
 }: ProfilePictureUploadProps) {
-  const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(
@@ -160,158 +158,15 @@ export function ProfilePictureUpload({
         return;
       }
 
-      const fileExt = "jpg"; // Always use jpg after compression
-      const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = fileName;
-
-      // Delete old picture BEFORE uploading new one to prevent duplicates
-      if (currentPictureUrl) {
-        try {
-          // Extract filename from URL - handle different URL formats
-          let oldFileName: string | null = null;
-
-          // Try to extract from full URL path
-          if (currentPictureUrl.includes("profile-pictures")) {
-            const urlParts = currentPictureUrl.split("/");
-            const lastPart = urlParts[urlParts.length - 1];
-            // Remove query parameters if present (e.g., ?t=timestamp)
-            oldFileName = lastPart.split("?")[0];
-          }
-
-          // Also try to find all files for this user to clean up duplicates
-          if (userId && oldFileName) {
-            // Delete the specific old file
-            const { error: deleteError } = await supabase.storage
-              .from("profile-pictures")
-              .remove([oldFileName]);
-
-            if (deleteError) {
-              console.warn("Failed to delete old file:", deleteError);
-            } else {
-              console.log(
-                "Successfully deleted old profile picture:",
-                oldFileName
-              );
-            }
-
-            // Also try to find and delete any other files for this user (cleanup duplicates)
-            try {
-              const { data: allFiles, error: listError } =
-                await supabase.storage.from("profile-pictures").list("", {
-                  limit: 1000,
-                  sortBy: { column: "created_at", order: "desc" },
-                });
-
-              if (!listError && allFiles) {
-                // Find all files that start with this userId
-                const userFiles = allFiles.filter(
-                  (file) =>
-                    file.name.startsWith(`${userId}-`) && file.name !== fileName
-                );
-
-                if (userFiles.length > 0) {
-                  const filesToDelete = userFiles.map((f) => f.name);
-                  const { error: bulkDeleteError } = await supabase.storage
-                    .from("profile-pictures")
-                    .remove(filesToDelete);
-
-                  if (!bulkDeleteError) {
-                    console.log(
-                      `Cleaned up ${filesToDelete.length} old profile picture(s) for user ${userId}`
-                    );
-                  }
-                }
-              }
-            } catch (cleanupErr) {
-              console.warn("Could not cleanup duplicate files:", cleanupErr);
-            }
-          }
-        } catch (err) {
-          console.warn("Error deleting old profile picture:", err);
-          // Continue with upload even if deletion fails
-        }
+      const form = new FormData();
+      form.append("as", userType);
+      form.append("file", fileToUpload);
+      const res = await fetch("/api/profile-picture", { method: "POST", body: form });
+      const payload = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !payload.url) {
+        throw new Error(payload.error || "Failed to upload profile picture");
       }
-
-      // Upload new file
-      // cacheControl: "31536000" = 1 year (profile pictures rarely change)
-      // This maximizes CDN and browser caching while keeping costs low
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("profile-pictures")
-        .upload(filePath, fileToUpload, {
-          cacheControl: "31536000", // 1 year - profile pictures rarely change
-          upsert: false, // Don't overwrite - we want unique filenames
-        });
-
-      if (uploadError) {
-        console.error("Storage upload error:", {
-          error: uploadError,
-          fileName,
-          fileSize: fileToUpload.size,
-          userId,
-          bucket: "profile-pictures",
-        });
-        throw new Error(
-          uploadError.message || "Failed to upload image to storage"
-        );
-      }
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("profile-pictures").getPublicUrl(filePath);
-
-      // Update database
-      // Use RPC functions for both users and employees to bypass RLS issues
-      let updateError = null;
-      console.log("Updating profile picture:", { userType, userId, publicUrl });
-
-      if (userType === "user") {
-        // Users use RPC function to avoid RLS policy issues
-        console.log("Using RPC function for user");
-        const { error, data } = await supabase.rpc(
-          "update_user_profile_picture",
-          {
-            p_user_id: userId,
-            p_profile_picture_url: publicUrl,
-          } as any
-        );
-        console.log("RPC result (user):", { error, data });
-        updateError = error;
-      } else if (userType === "employee") {
-        // Employees use RPC function (they don't have Supabase Auth)
-        console.log("Using RPC function for employee");
-        const { error, data } = await supabase.rpc(
-          "update_employee_profile_picture",
-          {
-            p_employee_id: userId,
-            p_profile_picture_url: publicUrl,
-          } as any
-        );
-        console.log("RPC result (employee):", { error, data });
-        updateError = error;
-      } else {
-        console.error("Unknown userType:", userType);
-        throw new Error(`Unknown userType: ${userType}`);
-      }
-
-      if (updateError) {
-        console.error("Database update error:", {
-          error: updateError,
-          userType,
-          userId,
-          publicUrl,
-        });
-        // Try to delete the uploaded file if database update fails
-        try {
-          await supabase.storage.from("profile-pictures").remove([filePath]);
-        } catch (cleanupError) {
-          console.warn("Failed to cleanup uploaded file:", cleanupError);
-        }
-        throw new Error(
-          updateError.message || "Failed to update profile picture in database"
-        );
-      }
-
+      const publicUrl = payload.url;
       setPreviewUrl(publicUrl);
       toast.success("Profile picture updated successfully");
       onUploadComplete?.(publicUrl);
@@ -376,104 +231,10 @@ export function ProfilePictureUpload({
 
     setUploading(true);
     try {
-      // Delete from storage
-      try {
-        // Extract filename from URL - handle different URL formats
-        let fileName: string | null = null;
-
-        if (currentPictureUrl.includes("profile-pictures")) {
-          const urlParts = currentPictureUrl.split("/");
-          const lastPart = urlParts[urlParts.length - 1];
-          // Remove query parameters if present
-          fileName = lastPart.split("?")[0];
-        }
-
-        if (fileName) {
-          const { error: deleteError } = await supabase.storage
-            .from("profile-pictures")
-            .remove([fileName]);
-
-          if (deleteError) {
-            console.warn(
-              "Failed to delete profile picture from storage:",
-              deleteError
-            );
-          } else {
-            console.log("Successfully deleted profile picture:", fileName);
-          }
-
-          // Also cleanup any other files for this user
-          if (userId) {
-            try {
-              const { data: allFiles, error: listError } =
-                await supabase.storage.from("profile-pictures").list("", {
-                  limit: 1000,
-                  sortBy: { column: "created_at", order: "desc" },
-                });
-
-              if (!listError && allFiles) {
-                const userFiles = allFiles.filter((file) =>
-                  file.name.startsWith(`${userId}-`)
-                );
-
-                if (userFiles.length > 0) {
-                  const filesToDelete = userFiles.map((f) => f.name);
-                  const { error: bulkDeleteError } = await supabase.storage
-                    .from("profile-pictures")
-                    .remove(filesToDelete);
-
-                  if (!bulkDeleteError) {
-                    console.log(
-                      `Cleaned up ${filesToDelete.length} profile picture file(s) for user ${userId}`
-                    );
-                  }
-                }
-              }
-            } catch (cleanupErr) {
-              console.warn("Could not cleanup user files:", cleanupErr);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Could not delete profile picture from storage:", err);
-      }
-
-      // Update database
-      // Use RPC functions for both users and employees to bypass RLS issues
-      let updateError = null;
-      console.log("Removing profile picture:", { userType, userId });
-
-      if (userType === "user") {
-        // Users use RPC function to avoid RLS policy issues
-        console.log("Using RPC function for user (remove)");
-        const { error, data } = await supabase.rpc(
-          "update_user_profile_picture",
-          {
-            p_user_id: userId,
-            p_profile_picture_url: null,
-          } as any
-        );
-        console.log("RPC result (user remove):", { error, data });
-        updateError = error;
-      } else if (userType === "employee") {
-        // Employees use RPC function (they don't have Supabase Auth)
-        console.log("Using RPC function for employee (remove)");
-        const { error, data } = await supabase.rpc(
-          "update_employee_profile_picture",
-          {
-            p_employee_id: userId,
-            p_profile_picture_url: null,
-          } as any
-        );
-        console.log("RPC result (employee remove):", { error, data });
-        updateError = error;
-      } else {
-        console.error("Unknown userType:", userType);
-        throw new Error(`Unknown userType: ${userType}`);
-      }
-
-      if (updateError) {
-        throw updateError;
+      const res = await fetch(`/api/profile-picture?as=${userType}`, { method: "DELETE" });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error || "Failed to remove profile picture");
       }
 
       setPreviewUrl(null);

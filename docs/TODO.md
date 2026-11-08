@@ -16,7 +16,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 ## Next
 
 16. **Night differential on regular-day overtime** (You to confirm, then Claude). DOLE pays night hours that are also overtime at 10% of the overtime rate (×1.25); regular days still use the basic rate. Production has 48 such days on 38 payslips, about ₱360 underpaid in total. Confirm with HR, then fix in `calculateDailyPay` (and `lib/payslip-print-sync.ts`, which prices regular-day ND directly) with a backfill.
-19. **Profile picture upload is broken** (Claude, after you decide). Settings and the portal Info page upload to a `profile-pictures` bucket and call `update_user_profile_picture` / `update_employee_profile_picture`; none of the three exist in production, so every upload fails. Decide: build it properly (bucket + server route behind the portal session) or remove the upload button.
+19. **Profile picture upload** (Claude → You). Code fixed: uploads and removals go through `/api/profile-picture`, which checks the staff login or the signed portal session and writes with the service role (staff → `profiles.avatar_url`, employees → `employees.profile_picture_url`; `lib/__tests__/profile-picture-route.test.ts`). The portal header and Info page now show the saved picture. **Waiting on:** push, then you run `20261108100000_profile_pictures_bucket.sql` and try an upload on Settings and the portal Info page.
 
 ## Decisions for HR / payroll (You)
 

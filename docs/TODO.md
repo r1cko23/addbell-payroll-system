@@ -6,7 +6,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Now
 
-23. **Close public sign-up** (You). Run `supabase/migrations/20261108150000_new_user_profile_role_employee.sql` in the SQL Editor so a sign-up can no longer pick its own role, then turn off "Allow new users to sign up" in Supabase → Authentication → Sign In / Providers. Nobody signs up in this app (staff are added in Settings, employees use the portal), but sign-up was on and the trigger copied `role` from sign-up data, so anyone could have made themselves admin. Checked 2026-11-08: nobody did. Tell Claude when done so it can recheck.
+23. **Turn off public sign-up** (You). In Supabase → Authentication → Sign In / Providers, turn off "Allow new users to sign up". The trigger fix is applied (2026-11-08, sign-ups now always get `employee`), but at 2026-11-08 the auth settings still reported sign-up on. Nobody signs up in this app, so this only removes an unused door. Tell Claude when done so it can recheck.
 
 ## Next
 
@@ -23,6 +23,7 @@ Nothing waiting on Claude.
 
 ## Done
 
+- 2026-11-08 Sign-ups can no longer choose their role: `handle_new_user` always creates an `employee` profile (20261108150000, checked in production).
 - 2026-11-08 Settings → Add user, deactivate and delete work again: they used a `users` table that no longer exists; they now use `profiles` (the profile is deleted with the login). Add/edit offers only the roles `profiles_role_check` allows, including Admin Assistant, and the role is set on the profile, never from sign-up metadata (`lib/__tests__/users-create-route.test.ts`). The browser no longer logs the new user's password.
 - 2026-11-08 Admin assistant role (ebda9f0, 20261108140000) live for l.grace.nopia@gmail.com: Upper Management queue read-only, cheque upload and download, no approve/reject/return/cutoff moves/cheque delete, every other page redirects to Fund requests. Checked in production as her (rolled back): reads 660 requests and 418 cheques, updates 0 requests, no employee, payslip or PO module access.
 - 2026-11-08 PO VAT: the form has VAT Inc (amount ÷ 1.12 = sub-total), VAT Ex (amount × 1.12 = total) and Non-VAT buttons; the print shows Sub-Total, VAT Amount and Total Amount, and saving stores all three (`lib/po-vat.ts`). PO print layout tightened per your notes the same day.

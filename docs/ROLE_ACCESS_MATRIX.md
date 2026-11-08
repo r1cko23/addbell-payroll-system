@@ -475,7 +475,6 @@ These pages are accessible via `/employee-portal/*` and use separate authenticat
 
 ### Pages Not Accessible to Any Role (via normal navigation):
 
-- `/clock` - Time clock page (likely employee portal feature)
 - `/activity` - Activity log (if exists)
 
 ---

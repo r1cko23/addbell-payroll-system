@@ -8,7 +8,7 @@ Status: step 1 applied to production 2026-11-06 and verified (anon reads 0 rows 
 
 The security advisor lists 22 `SECURITY DEFINER` functions that `anon` can call over `/rest/v1/rpc`. Eight of them are never called by the app and do not check the caller: `record_time_punch`, `create_overtime_request`, `authenticate_employee`, `get_employee_portal_info`, `get_employee_today_punches`, `post_purchase_order_costs`, `get_user_permissions`, `check_geofence`. The migration revokes `EXECUTE` from `public`, `anon` and `authenticated` and keeps it for `service_role`.
 
-Kept on purpose: the RLS helper functions (`get_my_role`, `is_hr_or_admin`, `get_my_employee_id`, `is_supervisor_of`, `get_employee_supervisor_id`) because policies call them as the caller; `is_employee_location_allowed` and `is_location_allowed` (Bundy and kiosk); `record_employee_first_login` (portal first-login route); and the four that already check `auth.uid()` (`approve_failure_to_log`, `reject_failure_to_log`, `create_purchase_order_with_items`, `reassign_client_owner`).
+Kept on purpose: the RLS helper functions (`get_my_role`, `is_hr_or_admin`, `get_my_employee_id`, `is_supervisor_of`, `get_employee_supervisor_id`) because policies call them as the caller; `is_employee_location_allowed` (portal bundy); `record_employee_first_login` (portal first-login route); and the four that already check `auth.uid()` (`approve_failure_to_log`, `reject_failure_to_log`, `create_purchase_order_with_items`, `reassign_client_owner`).
 
 ## The problem
 
@@ -33,7 +33,7 @@ Found by crawling every import from `app/employee-portal/**` and `app/login` (20
 
 The portal writes to none of these from the browser. Its writes go through `/api/employee-portal/*` and `/api/fund-requests`, which use the service role and now require the signed portal session (Phase 0).
 
-RPCs the portal or kiosk call with the anon key: `is_employee_location_allowed`, `is_location_allowed` and `get_my_role` are `SECURITY DEFINER`, so RLS does not affect them. `get_server_time` reads no table.
+RPCs the portal calls with the anon key: `is_employee_location_allowed` and `get_my_role` are `SECURITY DEFINER`, so RLS does not affect them. `get_server_time` reads no table.
 
 ## Step 1: close anonymous writes and most reads (migration only)
 

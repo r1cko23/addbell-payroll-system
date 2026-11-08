@@ -27,8 +27,8 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Later
 
-18. **`/clock` kiosk location check is broken** (Claude, low priority). `is_location_allowed` fails because `office_locations.latitude/longitude` are double precision and `calculate_distance` only takes numeric. No calls in the last day apart from tests, so the kiosk looks unused; either fix the cast or retire `/clock`. The portal bundy check (`is_employee_location_allowed`) works.
-15. `docs/RLS_LOCKDOWN_PLAN.md` "Not covered" still says portal passwords are plain text; they're hashed now (16c7074).
+18. **Retire `/clock`** (Claude → You). It was an unlinked staff page where HR, admin and upper management could punch any employee in or out, with a location check that always failed and was ignored. Page deleted. **Waiting on:** push, then you run `20261108120000_retire_clock_page_location_check.sql` (signed-in and signed-out users can no longer call `is_location_allowed`).
+15. `docs/RLS_LOCKDOWN_PLAN.md` "Not covered" still says portal passwords are plain text; they're hashed now (16c7074). Lines 11 and 36 are also stale: `record_employee_first_login` and `get_my_role` are no longer callable signed out.
 
 ## Done
 

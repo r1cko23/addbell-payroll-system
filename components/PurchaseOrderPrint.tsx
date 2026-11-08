@@ -214,8 +214,8 @@ export const PurchaseOrderPrint = forwardRef<
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: "16px",
-          marginTop: "20px",
+          gap: "12px",
+          marginTop: "12px",
           alignItems: "stretch",
         }}
       >
@@ -253,10 +253,10 @@ export const PurchaseOrderPrint = forwardRef<
             key={block.title}
             style={{
               border: `1px solid ${block.borderColor}`,
-              borderRadius: "8px",
-              padding: "14px",
+              borderRadius: "6px",
+              padding: "8px 10px",
               backgroundColor: block.bg,
-              minHeight: "100px",
+              lineHeight: 1.3,
               overflow: "hidden",
             }}
             className={block.title.includes("Vendor") ? "po-vendor-box" : "po-buyer-box"}
@@ -267,48 +267,47 @@ export const PurchaseOrderPrint = forwardRef<
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
-                marginBottom: "10px",
+                marginBottom: "4px",
                 color: COLORS.dark,
               }}
             >
               {block.title}
             </div>
-            <p style={{ margin: "0 0 6px", fontWeight: 600, fontSize: "12px", color: COLORS.dark, wordBreak: "break-word" }}>
+            <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: "11px", color: COLORS.dark, wordBreak: "break-word" }}>
               {block.data.name}
             </p>
             {block.data.contactPerson ? (
-              <p style={{ margin: "0 0 4px", fontSize: "10px", color: COLORS.muted }}>
+              <p style={{ margin: "0 0 1px", fontSize: "9px", color: COLORS.muted }}>
                 Contact: {block.data.contactPerson}
               </p>
             ) : null}
-            <p style={{ margin: "0 0 4px", fontSize: "10px", color: COLORS.muted }}>
+            <p style={{ margin: "0 0 1px", fontSize: "9px", color: COLORS.muted }}>
               TIN: {block.data.tin}
             </p>
             <p
               style={{
-                margin: "0 0 4px",
-                fontSize: "10px",
+                margin: "0 0 1px",
+                fontSize: "9px",
                 color: COLORS.dark,
                 wordBreak: "break-word",
                 overflowWrap: "break-word",
-                lineHeight: 1.35,
               }}
             >
               {block.data.address}
             </p>
-            <p style={{ margin: "0 0 4px", fontSize: "10px" }}>
+            <p style={{ margin: "0 0 1px", fontSize: "9px" }}>
               Tel: {block.data.phone}
             </p>
-            <p style={{ margin: "0 0 8px", fontSize: "10px" }}>
+            <p style={{ margin: 0, fontSize: "9px" }}>
               Email: {block.data.email}
             </p>
             {block.data.extra && (
               <p
                 style={{
-                  margin: 0,
-                  paddingTop: "8px",
+                  margin: "4px 0 0",
+                  paddingTop: "4px",
                   borderTop: "1px solid rgba(0,0,0,0.1)",
-                  fontSize: "10px",
+                  fontSize: "9px",
                   fontWeight: 500,
                 }}
               >

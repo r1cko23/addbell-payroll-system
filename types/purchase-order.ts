@@ -51,9 +51,9 @@ export interface PurchaseOrder {
 /** Default Addbell company info - from sample PO */
 export const DEFAULT_COMPANY: PurchaseOrderCompany = {
   name: "ADD-BELL TECHNICAL SERVICES, INC.",
-  tin: "293 128 460 000000",
+  tin: "007-997-875-00000",
   address: "BLK 6 LOT 26 LONDON ST. VILLA OLYMPIA 1 BRGY. MAHARLIKA SAN PEDRO, LAGUNA",
-  phone: "(02) 7117-1628",
+  phone: "(02) 7117-6128",
   email: "admin@addbell.com / phen.conte@addbell.com",
 };
 

@@ -71,3 +71,13 @@ describe("purchase order payment term options", () => {
     ]);
   });
 });
+
+describe("PO address case", () => {
+  it("writes address words in normal case and keeps acronyms", async () => {
+    const { normalizeMultiline } = await import("@/utils/po-format");
+    expect(
+      normalizeMultiline("BLK 6 LOT 26 LONDON ST. VILLA OLYMPIA 1 BRGY. MAHARLIKA SAN PEDRO, LAGUNA")
+    ).toBe("Blk 6 Lot 26 London St. Villa Olympia 1 Brgy. Maharlika San Pedro, Laguna");
+    expect(normalizeMultiline("Taguig City NCR Fourth District")).toBe("Taguig City NCR Fourth District");
+  });
+});

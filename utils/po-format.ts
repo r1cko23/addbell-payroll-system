@@ -12,11 +12,8 @@ import type {
   PurchaseOrderLineItem,
 } from "@/types/purchase-order";
 
-/** Words that stay all-caps in output (acronyms - e.g. TIN, PO) */
-const PRESERVE_UPPER = new Set([
-  "tin", "po", "php", "ph",
-  "rm", "blk", "lot", "brgy", "st", "ave", "bldg",
-]);
+/** Acronyms kept as typed (e.g. TIN, PO). Address words like Blk, Lot, St., Brgy. get normal case. */
+const PRESERVE_UPPER = new Set(["tin", "po", "php", "ph", "ncr"]);
 
 /** Common spelling corrections (lowercase key -> correct form) */
 const SPELLING: Record<string, string> = {

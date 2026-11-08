@@ -14,8 +14,6 @@ Nothing waiting on Claude.
 
 ## Decisions for HR / payroll (You)
 
-9. Confirm the ₱1,620.44 withholding tax on payslip `cdd0f7eb…` (Oct 21–27). The tax formula doesn't produce it; probably typed in by hand.
-10. Does a 10-hour regular day count as 1 day or 1.25? (Today: 1.25, since hourly = daily ÷ 8.) Changing it changes pay.
 11. One employee has no portal password and can't sign in until HR sets one.
 12. Move the payroll backup files off this Mac's app storage to where HR keeps payroll records: `~/Library/Application Support/Claude/side-session-notes/local_3beff32f-aeb8-4128-b338-5c2a9b076aea/`.
 
@@ -25,6 +23,7 @@ Nothing waiting on Claude.
 
 ## Done
 
+- 2026-11-08 Items 9 and 10 closed by you: the ₱1,620.44 tax on payslip `cdd0f7eb…` was entered by hand and stays as is; a 10-hour regular day stays at 1.25 days (hourly = daily ÷ 8).
 - 2026-11-08 No reprints needed (items 8 and 20 closed): per you, the corrected payslips were already paid and corrected outside the system; the backfills only bring the records in line.
 - 2026-11-08 Night differential on regular-day overtime now uses the OT rate (8f1d302). Backfill applied to 33 payslips, +₱310.78 gross and net, checked against the backup (`docs/backfills/2026-11-regular-day-ot-night-diff.md`).
 - 2026-11-08 Live app checked by you: portal sign-in (including a default-password account), cheques in the approval inbox, HR creating a payroll run, and a corrected payslip on screen and in print.

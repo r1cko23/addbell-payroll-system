@@ -1,4 +1,4 @@
--- Regular-day overtime night differential backfill (docs/TODO.md item 16). NOT RUN YET.
+-- Regular-day overtime night differential backfill (docs/TODO.md item 16). APPLIED 2026-11-08 03:55 UTC; verified 33/33. Do not run again.
 -- 33 payslips, 41 regular days, +₱310.78 gross and net in total.
 -- Only gross_pay, net_pay, earnings_breakdown.payroll_result (breakdown, totals, grossPay) and updated_at change.
 -- Attendance hours and every deduction (including the stored withholding tax) are unchanged.

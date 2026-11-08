@@ -1,6 +1,6 @@
 # Night differential on regular-day overtime (2026-11-08)
 
-**Status: NOT RUN YET.** SQL: [2026-11-regular-day-ot-night-diff.sql](2026-11-regular-day-ot-night-diff.sql). Run it once, as a whole, in the Supabase SQL Editor.
+**Status: APPLIED on 2026-11-08 at 03:55 UTC** with [2026-11-regular-day-ot-night-diff.sql](2026-11-regular-day-ot-night-diff.sql). The SQL Editor then showed `relation "v" does not exist`, but the update had already committed once: all 33 rows changed at the same timestamp. Checks afterwards: gross and net +₱310.78 and night differential totals +₱310.78 against the backup; deductions and attendance unchanged; net = gross + adjustment + allowance − deductions on all 33; gross within ₱0.01 of the calculator total. Originals are in `backups.payslips_regular_ot_nd_20261108`.
 
 ## Problem
 

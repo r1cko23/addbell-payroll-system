@@ -440,7 +440,7 @@ export const PurchaseOrderPrint = forwardRef<
 
       {/* Payment terms beside the totals */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", marginTop: "6px" }}>
-        <div className="po-payment-box" style={{ flex: 1, minWidth: 0 }}>
+        <div className="po-payment-box" style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: "8px" }}>
           <span
             style={{
               fontSize: "9px",
@@ -448,15 +448,14 @@ export const PurchaseOrderPrint = forwardRef<
               textTransform: "uppercase",
               color: COLORS.dark,
               letterSpacing: "0.03em",
-              display: "block",
-              marginBottom: "2px",
+              whiteSpace: "nowrap",
             }}
           >
-            Payment Terms
+            Payment Terms:
           </span>
           <div style={{ fontSize: "10px", lineHeight: 1.4 }}>
             {data.paymentTerms.map((term, i) => (
-              <div key={i}>• {term}</div>
+              <div key={i}>{term}</div>
             ))}
           </div>
         </div>

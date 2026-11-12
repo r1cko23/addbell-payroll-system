@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx-js-style";
-import { addDays, format, parseISO } from "date-fns";
+import { useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import * as XLSXStyle from "xlsx-js-style";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { CardSection } from "@/components/ui/card-section";
@@ -17,168 +17,138 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/utils/format";
-import { SIL_LEAVE_COLUMNS, currentSilYear } from "@/lib/sil-balance";
+import { SIL_LEAVE_COLUMNS, currentSilYear, type SilLeaveRow } from "@/lib/sil-balance";
 import {
   buildYearEndRows,
-  thirteenthMonthWindow,
-  type YearEndLeaveRow,
-  type YearEndPayslip,
+  parseThirteenthMonthWorkbook,
+  type AppEmployee,
   type YearEndRow,
 } from "@/lib/year-end-payout";
 
-const PAGE = 1000;
-
-/** 13th month + unused SIL cash, paid together in December. */
+/** 13th month (from HR's sheet) + unused SIL cash (from the app), paid together in December. */
 export function YearEndPayoutPanel() {
   const supabase = useMemo(() => createClient(), []);
-  const thisYear = Number(currentSilYear());
-  const [year, setYear] = useState(thisYear);
+  const year = Number(currentSilYear());
+  const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<YearEndRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const win = thirteenthMonthWindow(year);
 
-  const load = useCallback(async () => {
-    setRows(null);
+  async function onFile(file: File) {
+    setLoading(true);
     setError(null);
+    setRows(null);
+    setFileName(file.name);
     try {
-      // A year of weekly payslips is several thousand rows: page past the 1,000-row API limit.
-      const payslips: YearEndPayslip[] = [];
-      for (let from = 0; ; from += PAGE) {
-        const { data, error } = await supabase
-          .from("payslips")
-          .select(
-            "employee_id, period_start, gross_pay, att:earnings_breakdown->attendance_data, bd:earnings_breakdown->payroll_result->breakdown, totals:earnings_breakdown->payroll_result->totals"
-          )
-          .gt("period_end", win.afterEnd)
-          .lte("period_end", win.throughEnd)
-          .order("id")
-          .range(from, from + PAGE - 1);
-        if (error) throw error;
-        for (const p of (data ?? []) as any[]) {
-          payslips.push({
-            employee_id: p.employee_id,
-            period_start: p.period_start,
-            gross_pay: p.gross_pay,
-            earnings_breakdown: {
-              attendance_data: p.att ?? [],
-              payroll_result: { breakdown: p.bd ?? [], totals: p.totals },
-            },
-          });
-        }
-        if (!data || data.length < PAGE) break;
+      const sheetRows = parseThirteenthMonthWorkbook(XLSX.read(await file.arrayBuffer()));
+      if (sheetRows.length === 0) {
+        throw new Error('No employee rows found. The sheet needs a header row with "RATE" in column D.');
       }
       const [{ data: employees, error: empErr }, { data: leaves, error: leaveErr }] =
         await Promise.all([
-          supabase.from("employees").select("id, employee_id, full_name, salary_basis, base_rate"),
+          supabase.from("employees").select("id, employee_id, full_name, salary_basis, base_rate, is_active"),
           supabase
             .from("leave_requests")
-            .select(`${SIL_LEAVE_COLUMNS}, end_date`)
-            // Paid leave in the 13th month window (from last December) and this year's SIL.
-            .gte("end_date", win.afterEnd)
+            .select(SIL_LEAVE_COLUMNS)
+            .gte("end_date", `${year}-01-01`)
             .lte("start_date", `${year}-12-31`),
         ]);
       if (empErr) throw empErr;
       if (leaveErr) throw leaveErr;
       setRows(
         buildYearEndRows(
-          (employees ?? []) as any[],
-          payslips,
-          (leaves ?? []) as YearEndLeaveRow[],
+          sheetRows,
+          (employees ?? []) as AppEmployee[],
+          (leaves ?? []) as SilLeaveRow[],
           year
         )
       );
     } catch (e: any) {
-      setError(e?.message || "Couldn't load payslips for the 13th month.");
+      setError(e?.message || "Couldn't read that file.");
+    } finally {
+      setLoading(false);
     }
-  }, [supabase, year, win.afterEnd, win.throughEnd]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  }
 
   const totals = useMemo(() => {
-    const sum = (k: keyof YearEndRow) =>
-      Math.round((rows ?? []).reduce((s, r) => s + Number(r[k] || 0), 0) * 100) / 100;
-    return { thirteenth: sum("thirteenthMonth"), sil: sum("silCash"), total: sum("total") };
+    const sum = (k: "basic" | "thirteenthMonth" | "silCash" | "total") =>
+      Math.round((rows ?? []).reduce((s, r) => s + r[k], 0) * 100) / 100;
+    return { basic: sum("basic"), thirteenth: sum("thirteenthMonth"), sil: sum("silCash"), total: sum("total") };
   }, [rows]);
-
-  // Weeks before this date are missing from the app (payslips started in April 2026).
-  const windowStartStr = format(addDays(parseISO(win.afterEnd), 1), "yyyy-MM-dd");
 
   function exportExcel() {
     if (!rows) return;
     const header = [
+      "Sheet",
       "ID #",
       "Name",
-      "First cutoff in app",
-      "Basic pay",
+      "Basic (from sheet)",
       "13th month (basic ÷ 12)",
       "Unused SIL days",
       "Daily rate",
       "SIL cash",
       "Total",
+      "Notes",
     ];
     const data = rows.map((r) => [
+      r.sheet,
       r.code,
       r.name,
-      r.firstCutoff ?? "",
       r.basic,
       r.thirteenthMonth,
       r.silUnusedDays,
       r.dailyRate,
       r.silCash,
       r.total,
+      r.notes.join("; "),
     ]);
-    data.push(["", "TOTAL", "", "", totals.thirteenth, "", "", totals.sil, totals.total]);
-    const ws = XLSX.utils.aoa_to_sheet([
-      [`ADD-BELL 13TH MONTH + SIL ${year} (cutoffs ${windowStartStr} to ${win.throughEnd})`],
+    data.push(["", "", "TOTAL", totals.basic, totals.thirteenth, "", "", totals.sil, totals.total, ""]);
+    const ws = XLSXStyle.utils.aoa_to_sheet([
+      [`ADD-BELL 13TH MONTH + SIL ${year} (from ${fileName ?? "HR sheet"})`],
       header,
       ...data,
     ]);
-    ws["!cols"] = [10, 32, 14, 14, 18, 12, 10, 12, 14].map((wch) => ({ wch }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "13th month + SIL");
-    XLSX.writeFile(wb, `13th-month-SIL-${year}.xlsx`);
+    ws["!cols"] = [10, 10, 30, 16, 18, 12, 10, 12, 14, 40].map((wch) => ({ wch }));
+    const wb = XLSXStyle.utils.book_new();
+    XLSXStyle.utils.book_append_sheet(wb, ws, "13th month + SIL");
+    XLSXStyle.writeFile(wb, `13th-month-SIL-${year}.xlsx`);
   }
 
-  const partial = (rows ?? []).some((r) => (r.firstCutoff ?? "") > windowStartStr);
+  const unmatched = (rows ?? []).filter((r) => !r.employeeId).length;
 
   return (
     <CardSection
       title="13th month and SIL cash"
-      description={`Cutoffs ${windowStartStr} to ${win.throughEnd}. 13th month is basic pay for days worked (holidays and leave left out) ÷ 12; unused SIL days are paid at the current daily rate.`}
+      description={`Upload HR's 13th month sheet. 13th month is the sheet's basic ÷ 12; unused ${year} SIL days from the app are paid at the daily rate.`}
     >
-      <HStack gap="2" className="flex-wrap">
-        <select
-          aria-label="Year"
-          className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-          value={year}
-          onChange={(e) => setYear(Number(e.target.value))}
-        >
-          {[thisYear, thisYear - 1].map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
+      <HStack gap="2" className="flex-wrap items-center">
+        <label className="inline-flex">
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onFile(f);
+              e.target.value = "";
+            }}
+          />
+          <span className="inline-flex h-9 cursor-pointer items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted">
+            {fileName ? "Upload another sheet" : "Upload HR sheet"}
+          </span>
+        </label>
         <Button variant="outline" onClick={exportExcel} disabled={!rows?.length}>
           Export Excel
         </Button>
+        {fileName && <BodySmall className="text-muted-foreground">{fileName}</BodySmall>}
       </HStack>
 
-      {error && (
-        <BodySmall className="text-destructive">
-          {error}{" "}
-          <button className="underline" onClick={() => void load()}>
-            Try again
-          </button>
-        </BodySmall>
-      )}
-      {!error && rows === null && <BodySmall className="text-muted-foreground">Loading…</BodySmall>}
-      {partial && (
+      {loading && <BodySmall className="text-muted-foreground">Reading sheet…</BodySmall>}
+      {error && <BodySmall className="text-destructive">{error}</BodySmall>}
+      {unmatched > 0 && (
         <BodySmall className="text-muted-foreground">
-          Some employees have no payslips in the app before their first cutoff shown. Add the basic pay for
-          earlier weeks from the accountant&apos;s sheet before paying.
+          {unmatched} {unmatched === 1 ? "person isn't" : "people aren't"} in the app, so they get the 13th month only. Check
+          the Notes column.
         </BodySmall>
       )}
 
@@ -188,47 +158,47 @@ export function YearEndPayoutPanel() {
             <TableHeader>
               <TableRow>
                 <TableHead>Employee</TableHead>
-                <TableHead>First cutoff</TableHead>
-                <TableHead className="text-right">Basic pay</TableHead>
+                <TableHead className="text-right">Basic</TableHead>
                 <TableHead className="text-right">13th month</TableHead>
                 <TableHead className="text-right">Unused SIL</TableHead>
                 <TableHead className="text-right">Daily rate</TableHead>
                 <TableHead className="text-right">SIL cash</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead>Notes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.employeeId}>
+                <TableRow key={r.key}>
                   <TableCell>
                     {r.name}
-                    <span className="block text-xs text-muted-foreground">{r.code}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {r.sheet}
+                      {r.code ? ` · ${r.code}` : ""}
+                    </span>
                   </TableCell>
-                  <TableCell>{r.firstCutoff}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(r.basic)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(r.thirteenthMonth)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.silUnusedDays}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.employeeId ? r.silUnusedDays : "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(r.dailyRate)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(r.silCash)}</TableCell>
                   <TableCell className="text-right tabular-nums font-semibold">{formatCurrency(r.total)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{r.notes.join("; ")}</TableCell>
                 </TableRow>
               ))}
               <TableRow>
                 <TableCell className="font-semibold">Total</TableCell>
-                <TableCell />
-                <TableCell />
+                <TableCell className="text-right tabular-nums font-semibold">{formatCurrency(totals.basic)}</TableCell>
                 <TableCell className="text-right tabular-nums font-semibold">{formatCurrency(totals.thirteenth)}</TableCell>
                 <TableCell />
                 <TableCell />
                 <TableCell className="text-right tabular-nums font-semibold">{formatCurrency(totals.sil)}</TableCell>
                 <TableCell className="text-right tabular-nums font-semibold">{formatCurrency(totals.total)}</TableCell>
+                <TableCell />
               </TableRow>
             </TableBody>
           </Table>
         </div>
-      )}
-      {rows && rows.length === 0 && (
-        <BodySmall className="text-muted-foreground">No payslips in this 13th month year yet.</BodySmall>
       )}
     </CardSection>
   );

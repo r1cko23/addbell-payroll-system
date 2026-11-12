@@ -10,7 +10,7 @@ Owner: **Claude** = code or SQL a session can do (production SQL still needs the
 
 ## Next
 
-Nothing waiting on Claude.
+25. **Convert unused SIL to cash in December** (Claude). HR policy: unused SIL (of the 5 per year) is paid in cash with the 13th month pay. Unused days = `computeSilBalance(rows, year).remaining` in `lib/sil-balance.ts`, times the daily rate. Needs a decision on where it appears (13th month payslip line) and on employees who leave mid-year.
 
 ## Decisions for HR / payroll (You)
 
@@ -24,6 +24,7 @@ Nothing waiting on Claude.
 
 ## Done
 
+- 2026-11-12 SIL balance is computed from leave requests instead of the `employees.sil_credits` counter: 5 days per calendar year, full 5 from day one, unused days expire at year end (HR decision). Portal shows allotment − approved − pending; HR sees allotment − approved (`lib/sil-balance.ts`, `lib/__tests__/sil-balance.test.ts`). The browser-side deduction on approval is gone. Checked in production: matches the old counter for all 7 employees with SIL leave except Eleazar, who was over-deducted (1 → 2). The `sil_credits` column is no longer read.
 - 2026-11-12 Printed payslips show paid leave on its own SIL row instead of inside Basic (e.g. Eleazar Nov 4–10: Basic 40h, SIL 8h, gross unchanged). Leave-credited hours are tagged `leaveHours` when attendance is built (`lib/payslip-print-sync.ts` `moveSilOutOfBasic`, `utils/__tests__/payslip-sil-split.test.ts`). Production: tagged 6 unpunched leave days on 4 saved payslips (Eleazar paid Nov 4; Constantino, Joel, Daniel drafts); amounts not changed. The Payslip generation breakdown shows the same split.
 - 2026-11-12 Shifts no longer vanish when staff move a clock-in earlier after the 23h auto clock-out: auto clock-outs now pair with their clock-in at any gap (`lib/timeEntries.ts`, `utils/__tests__/timeEntries-pair-gap.test.ts`). Carizza's Nov 6 shift shows again in attendance and payroll.
 - 2026-11-08 Sign-ups can no longer choose their role: `handle_new_user` always creates an `employee` profile (20261108150000, checked in production).

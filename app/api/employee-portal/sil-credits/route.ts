@@ -1,5 +1,5 @@
 /**
- * Employee portal: read SIL balance from employees.sil_credits (service role).
+ * Employee portal: SIL balance computed from this year's leave requests (service role).
  * Portal sessions are not Supabase JWTs, so client-side SELECT is blocked by RLS.
  */
 
@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requirePortalEmployee } from "@/lib/portal-session";
 import { createClient } from "@supabase/supabase-js";
 import { SIL_ANNUAL_ALLOTMENT } from "@/lib/employee-sil-display";
+import { fetchSilBalances } from "@/lib/sil-balance";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -32,25 +33,13 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getAdminClient();
-    const { data, error } = await admin
-      .from("employees")
-      .select("sil_credits")
-      .eq("id", employeeId)
-      .maybeSingle();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!data) {
-      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
-    }
-
-    const silCredits =
-      data.sil_credits != null ? Number(data.sil_credits) : 0;
+    const balance = (await fetchSilBalances(admin, [employeeId])).get(employeeId)!;
 
     return NextResponse.json({
-      sil_credits: Number.isFinite(silCredits) ? silCredits : 0,
+      // What the employee can still file: allotment − approved − pending this year.
+      sil_credits: balance.available,
+      sil_used: balance.used,
+      sil_pending: balance.pending,
       sil_annual_allotment: SIL_ANNUAL_ALLOTMENT,
     });
   } catch (err: unknown) {

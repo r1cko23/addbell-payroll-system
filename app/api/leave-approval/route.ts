@@ -5,6 +5,7 @@ import type { Database } from "@/types/database";
 import { CACHE_TTL, cachedJson } from "@/lib/cache";
 import { verifyDashboardUser } from "@/lib/api-helpers";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
+import { fetchSilBalances } from "@/lib/sil-balance";
 
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -65,11 +66,16 @@ export async function GET(req: NextRequest) {
       if (employeeIds.length > 0) {
         const { data: employeeRows } = await supabase
           .from("employees")
-          .select("id, employee_id, full_name, profile_picture_url, sil_credits")
+          .select("id, employee_id, full_name, profile_picture_url")
           .in("id", employeeIds);
+        // HR sees allotment − approved this year; the pending request itself is not subtracted.
+        const silById = await fetchSilBalances(supabase, employeeIds);
         for (const row of employeeRows || []) {
           const e = row as { id: string };
-          employeeById[e.id] = row as Record<string, unknown>;
+          employeeById[e.id] = {
+            ...(row as Record<string, unknown>),
+            sil_credits: silById.get(e.id)?.remaining ?? 0,
+          };
         }
       }
 

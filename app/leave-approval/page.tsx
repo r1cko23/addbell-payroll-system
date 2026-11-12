@@ -761,35 +761,7 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    // Deduct SIL credits on final approval (HR stage).
-    // Note: In this codebase, "SIL" UI label covers rows stored as "SIL", "Sick Leave",
-    // or "Service Incentive Leave" (see normalizeLeaveTypeLabel).
-    if (level === "hr" && normalizeLeaveTypeLabel(request.leave_type) === "SIL") {
-      const daysToDeduct = Math.max(0, Number(request.total_days || 0));
-      if (daysToDeduct > 0) {
-        try {
-          const { data: empRow, error: empErr } = await supabase
-            .from("employees")
-            .select("sil_credits")
-            .eq("id", request.employee_id)
-            .maybeSingle();
-          if (empErr) throw empErr;
-          const current = empRow?.sil_credits != null ? Number(empRow.sil_credits) : 0;
-          const next = Math.max(0, Math.round((current - daysToDeduct) * 100) / 100);
-          const { error: updErr } = await supabase
-            .from("employees")
-            .update({ sil_credits: next })
-            .eq("id", request.employee_id);
-          if (updErr) throw updErr;
-        } catch (e: any) {
-          console.error("SIL credit deduction failed:", e);
-          // Do not block approval; surface a warning so HR can reconcile later.
-          toast.error("Approved, but SIL credits not updated", {
-            description: e?.message || "Please adjust SIL credits manually.",
-          });
-        }
-      }
-    }
+    // SIL balance is computed from approved leave (lib/sil-balance.ts); nothing to deduct here.
 
     const employeeName = request.employees?.full_name || "Employee";
     toast.success(

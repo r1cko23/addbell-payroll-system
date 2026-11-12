@@ -24,6 +24,7 @@ import {
 
 export type PayslipPrintEarningsTable = {
   basic: { days: number; hours: number; amount: number };
+  sil: { hours: number; amount: number };
   overtime: { hours: number; amount: number };
   nightDiff: { hours: number; amount: number };
   legalHoliday: { days: number; amount: number };
@@ -101,6 +102,43 @@ function hoursToDays(hours: number) {
   return hours > 0 ? hours / 8 : 0;
 }
 
+/**
+ * Moves paid leave (SIL) hours out of the Basic row into their own SIL row.
+ * Basic + SIL equals the old Basic, so gross pay does not change.
+ */
+export function moveSilOutOfBasic(
+  table: Pick<PayslipPrintEarningsTable, "basic" | "sil">,
+  attendanceDays: unknown,
+  ratePerHour: number,
+  sundayIsWorkday: boolean
+): void {
+  if (!Array.isArray(attendanceDays)) return;
+  let hours = 0;
+  for (const day of attendanceDays as Array<{
+    date?: string;
+    dayType?: string;
+    regularHours?: number;
+    leaveHours?: number;
+  }>) {
+    if ((day.dayType || "regular") !== "regular") continue;
+    if (new Date(day.date ?? "").getDay() === 0 && !sundayIsWorkday) continue;
+    const regular = creditWorkHoursHalfHour(
+      Math.round((Number(day.regularHours) || 0) * 100) / 100
+    );
+    hours += Math.min(Number(day.leaveHours) || 0, regular);
+  }
+  hours = Math.min(hours, table.basic.hours);
+  if (hours <= 0) return;
+  const amount = Math.min(
+    Math.round(hours * ratePerHour * 100) / 100,
+    table.basic.amount
+  );
+  table.sil = { hours, amount };
+  table.basic.hours -= hours;
+  table.basic.days = hoursToDays(table.basic.hours);
+  table.basic.amount = Math.round((table.basic.amount - amount) * 100) / 100;
+}
+
 export function buildPayslipPrintSyncFromDetailedBreakdown(
   data: DetailedBreakdownSnapshot
 ): PayslipPrintEarningsSync {
@@ -137,6 +175,7 @@ export function buildPayslipPrintSyncFromDetailedBreakdown(
         days: hoursToDays(data.hoursWorked),
         amount: data.basicSalary,
       },
+      sil: { hours: 0, amount: 0 },
       overtime: {
         hours: data.earningsOT.regularOvertime.hours,
         amount: data.earningsOT.regularOvertime.amount,

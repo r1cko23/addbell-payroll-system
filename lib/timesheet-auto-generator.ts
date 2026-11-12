@@ -166,6 +166,7 @@ export function generateTimesheetFromClockEntries(
     let regularHours = 0;
     let overtimeHours = 0;
     let nightDiffHours = 0;
+    let leaveHours = 0;
 
     dayEntries.forEach((entry) => {
       // Only count approved or auto-approved entries
@@ -248,6 +249,7 @@ export function generateTimesheetFromClockEntries(
     if (!isSaturday && dayType === "regular") {
       const paidLeaveHours = paidLeaveHoursByDate?.get(dateStr) ?? 0;
       if (paidLeaveHours > regularHours) {
+        leaveHours = paidLeaveHours - regularHours;
         regularHours = paidLeaveHours;
       }
     }
@@ -310,6 +312,7 @@ export function generateTimesheetFromClockEntries(
       regularHours: round2(regularHours),
       overtimeHours: round2(overtimeHours),
       nightDiffHours: round2(nightDiffHours),
+      ...(leaveHours > 0 ? { leaveHours: round2(leaveHours) } : {}),
     };
   };
 

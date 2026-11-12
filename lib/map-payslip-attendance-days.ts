@@ -16,6 +16,8 @@ export type MappedPayslipAttendanceDay = {
   nightDiffHours: number;
   clockInTime?: string;
   clockOutTime?: string;
+  /** Paid leave (SIL) hours inside regularHours. */
+  leaveHours?: number;
 };
 
 function orUndefined(value: string | null | undefined): string | undefined {
@@ -85,8 +87,10 @@ export function mapPayslipAttendanceDays(
     }
 
     const firstPunch = dayPunches[0];
+    const leaveHours = Math.min(Number(day.leaveHours || 0), regularHours);
 
     return {
+      ...(leaveHours > 0 ? { leaveHours } : {}),
       date: dayDate,
       dayType: (day.dayType || "regular") as DayType,
       regularHours,

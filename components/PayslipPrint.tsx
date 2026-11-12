@@ -25,7 +25,10 @@ import {
 } from "@/utils/holidays";
 import { aggregateMetricsFromAttendanceDays } from "@/lib/day-attendance-summary";
 import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
-import type { PayslipPrintEarningsSync } from "@/lib/payslip-print-sync";
+import {
+  moveSilOutOfBasic,
+  type PayslipPrintEarningsSync,
+} from "@/lib/payslip-print-sync";
 import { PAYSLIP_PRINT_INLINE_STYLES } from "@/lib/payslip-print-document";
 import { applyPayslipTableLayoutFixes } from "@/lib/payslip-table-layout";
 import type { AllowanceLine } from "@/lib/payslip-allowances";
@@ -189,6 +192,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   // Initialize earnings breakdown
   const earningsBreakdown = {
     basic: { days: 0, hours: 0, amount: 0 },
+    sil: { hours: 0, amount: 0 },
     overtime: { hours: 0, amount: 0 },
     nightDiff: { hours: 0, amount: 0 },
     legalHoliday: { days: 0, amount: 0 },
@@ -580,6 +584,13 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     earningsBreakdown.nightDiff.amount = props.earnings.nightDiff;
   }
 
+  moveSilOutOfBasic(
+    earningsBreakdown,
+    attendance?.attendance_data,
+    ratePerHour,
+    isClientBased || isAccountSupervisor
+  );
+
   // Format name (LAST NAME, FIRST NAME)
   const formatName = (fullName: string) => {
     const parts = fullName.split(" ");
@@ -862,6 +873,19 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   {formatCurrencyOrDash(earningsBreakdown.basic.amount)}
                 </td>
               </tr>
+              {earningsBreakdown.sil.hours > 0 && (
+                <tr>
+                  <td style={{ border: "1px solid #000", fontWeight: "bold" }}>
+                    SIL
+                  </td>
+                  <td style={{ border: "1px solid #000", textAlign: "right" }}>
+                    {earningsBreakdown.sil.hours.toFixed(2)}
+                  </td>
+                  <td style={{ border: "1px solid #000", textAlign: "right" }}>
+                    {formatCurrencyOrDash(earningsBreakdown.sil.amount)}
+                  </td>
+                </tr>
+              )}
               {(
                 <tr>
                   <td

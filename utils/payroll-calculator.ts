@@ -17,6 +17,8 @@ export interface DailyAttendance {
   regularHours: number;
   overtimeHours: number;
   nightDiffHours: number;
+  /** Paid leave (SIL) hours already inside regularHours; printed apart from Basic. */
+  leaveHours?: number;
 }
 
 export interface PayCalculation {

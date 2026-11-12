@@ -75,7 +75,7 @@ export function paidLeaveCreditHours(info: LeaveDayInfo): number {
 }
 
 export function applyLeaveOverlayToAttendance<
-  T extends { date?: string; regularHours?: number; dayType?: string },
+  T extends { date?: string; regularHours?: number; dayType?: string; leaveHours?: number },
 >(
   attendanceData: T[],
   leaveDatesMap: Map<string, LeaveDayInfo>
@@ -88,6 +88,7 @@ export function applyLeaveOverlayToAttendance<
     return {
       ...day,
       regularHours: silHours,
+      leaveHours: silHours,
       dayType: "regular",
     };
   });

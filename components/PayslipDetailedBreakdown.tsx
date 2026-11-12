@@ -35,6 +35,7 @@ import {
 } from "@/utils/holidays";
 import {
   buildPayslipPrintSyncFromDetailedBreakdown,
+  moveSilOutOfBasic,
   type PayslipPrintEarningsSync,
 } from "@/lib/payslip-print-sync";
 import { resolveDaysWorkTotals } from "@/lib/ph-payroll/days-work-rollup";
@@ -1050,6 +1051,18 @@ function PayslipDetailedBreakdownComponent({
   } = calculationResult;
   const totalSalary = basicSalary;
 
+  // Display only: SIL gets its own row. Print sync keeps the combined Basic (PayslipPrint splits it).
+  const silSplit = {
+    basic: { days: 0, hours: hoursWorked, amount: basicSalary },
+    sil: { hours: 0, amount: 0 },
+  };
+  moveSilOutOfBasic(
+    silSplit,
+    attendanceData,
+    ratePerHour,
+    isClientBased || isAccountSupervisor
+  );
+
   // Notify parent component of total gross pay change
   // This ensures Payslip Summary always has the correct Gross Pay value
   // Call immediately whenever totalGrossPay is calculated or changes
@@ -1135,13 +1148,13 @@ function PayslipDetailedBreakdownComponent({
               <tbody>
                 <tr className="bg-white hover:bg-gray-50 transition-colors">
                   <td className="px-2 py-1.5 text-xs font-medium text-gray-900">
-                    {totalHoursWorked.toFixed(2)}
+                    {(totalHoursWorked - silSplit.sil.hours).toFixed(2)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-mono text-gray-700">
                     {(Math.round(ratePerHour * 100) / 100).toFixed(2)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-semibold text-gray-900">
-                    {formatCurrency(basicSalary)}
+                    {formatCurrency(silSplit.basic.amount)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-bold text-primary-700">
                     {formatCurrency(totalGrossPay)}
@@ -1247,10 +1260,17 @@ function PayslipDetailedBreakdownComponent({
                       {/* 1. Hours Work (Regular) = actual BH from Time Attendance for this cutoff. */}
                       {renderEarningRow(
                         "1. Hours Work (Regular)",
-                      hoursWorked,
+                        silSplit.basic.hours,
                         "—",
-                        basicSalary
+                        silSplit.basic.amount
                       )}
+                      {silSplit.sil.hours > 0 &&
+                        renderEarningRow(
+                          "SIL (paid leave)",
+                          silSplit.sil.hours,
+                          "—",
+                          silSplit.sil.amount
+                        )}
 
                       {/* Night Differential */}
                       {renderEarningRow(

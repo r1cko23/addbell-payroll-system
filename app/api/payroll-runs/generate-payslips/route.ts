@@ -18,25 +18,14 @@ import {
   type OtRowWithEmployee,
 } from "@/lib/ftl-ot-synthesis";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import {
-  calculatePagIBIG,
-  calculatePhilHealth,
-  calculateSSS,
-  calculateSemiMonthlyWithholdingTax,
-} from "@/utils/ph-deductions";
+import { calculateSemiMonthlyWithholdingTax } from "@/utils/ph-deductions";
+import { fetchMonthAfterStatutory } from "@/lib/month-after-statutory";
 import {
   countWeeklyPaysInSemiMonth,
-  isFourthStatutoryWeeklyPay,
   isLastWeeklyPayOfSemiMonth,
   semiMonthlyPeriodIndex,
 } from "@/lib/weekly-statutory-deductions";
 import { HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS } from "@/utils/holidays";
-import {
-  applyStatutoryProration,
-  fetchDistinctWorkDaysMonthToDate,
-  statutoryProrationFactorFromDays,
-  STATUTORY_PRORATION_REFERENCE_DAYS,
-} from "@/lib/statutory-proration";
 import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { buildStoredEarningsBreakdown } from "@/lib/payroll-earnings-breakdown";
@@ -486,73 +475,27 @@ export async function POST(req: NextRequest) {
           : 0;
       const validMonthlySalary = monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
 
-      // Statutory contributions (employee shares)
-      const sssContribution = calculateSSS(validMonthlySalary);
-      const philhealthContribution = calculatePhilHealth(validMonthlySalary);
-      const pagibigContribution = calculatePagIBIG(validMonthlySalary);
-
-      let mtdWorkDaysForSave = STATUTORY_PRORATION_REFERENCE_DAYS;
-      let prorationFactorSave = 1;
-      try {
-        const clockIds = [
-          e.id,
-          e.transferred_from_employee_id,
-        ].filter(Boolean) as string[];
-        mtdWorkDaysForSave = await fetchDistinctWorkDaysMonthToDate(
-          admin as any,
-          clockIds,
-          periodEndTuesday
-        );
-        prorationFactorSave = statutoryProrationFactorFromDays(mtdWorkDaysForSave);
-      } catch {
-        mtdWorkDaysForSave = STATUTORY_PRORATION_REFERENCE_DAYS;
-        prorationFactorSave = 1;
-      }
-
-      const takeStatutory =
-        grossPay > 0 && isFourthStatutoryWeeklyPay(periodEndTuesday);
-      const sssRegularAmount =
-        takeStatutory && validMonthlySalary > 0
-          ? applyStatutoryProration(
-              Math.round((sssContribution.regularEmployeeShare ?? 0) * 100) / 100,
-              prorationFactorSave
+      // SSS / PhilHealth / Pag-IBIG: previous contribution month's actual basic and gross,
+      // deducted on the last cutoff of the month (accountant's workbook).
+      const statutory =
+        grossPay > 0
+          ? await fetchMonthAfterStatutory(
+              admin as any,
+              [e.id, e.transferred_from_employee_id].filter(Boolean) as string[],
+              periodEndTuesday
             )
-          : 0;
-      const sssWispAmount =
-        takeStatutory && validMonthlySalary > 0 && (sssContribution.wispEmployeeShare ?? 0) > 0
-          ? applyStatutoryProration(
-              Math.round((sssContribution.wispEmployeeShare ?? 0) * 100) / 100,
-              prorationFactorSave
-            )
-          : 0;
-      const philhealthAmount =
-        takeStatutory && validMonthlySalary > 0
-          ? applyStatutoryProration(
-              Math.round((philhealthContribution.employeeShare ?? 0) * 100) / 100,
-              prorationFactorSave
-            )
-          : 0;
-      const pagibigAmount =
-        takeStatutory && validMonthlySalary > 0
-          ? applyStatutoryProration(
-              Math.round((pagibigContribution.employeeShare ?? 0) * 100) / 100,
-              prorationFactorSave
-            )
-          : 0;
+          : null;
+      const sssRegularAmount = statutory?.sssReg ?? 0;
+      const sssWispAmount = statutory?.sssWisp ?? 0;
+      const philhealthAmount = statutory?.phil ?? 0;
+      const pagibigAmount = statutory?.pagibig ?? 0;
 
       // Withholding tax (semi-monthly settlement on last Tue of each half)
       let withholdingTax = 0;
       const takeSemiMonthTax =
         grossPay > 0 && isLastWeeklyPayOfSemiMonth(periodEndTuesday);
       if (takeSemiMonthTax && (grossPay > 0 || validMonthlySalary > 0)) {
-        const monthlyContributionsFull =
-          (sssContribution.employeeShare ?? 0) +
-          (philhealthContribution.employeeShare ?? 0) +
-          (pagibigContribution.employeeShare ?? 0);
-        const monthlyContributions = applyStatutoryProration(
-          Math.round(monthlyContributionsFull * 100) / 100,
-          prorationFactorSave
-        );
+        const monthlyContributions = statutory?.total ?? 0;
         const halfMonthlyContrib = Math.round((monthlyContributions / 2) * 100) / 100;
 
         const curEndStr = format(periodEndTuesday, "yyyy-MM-dd");
@@ -613,9 +556,9 @@ export async function POST(req: NextRequest) {
         sss_wisp: sssWispAmount,
         philhealth: philhealthAmount,
         pagibig: pagibigAmount,
-        statutory_mtd_work_days: mtdWorkDaysForSave,
-        statutory_proration_factor: prorationFactorSave,
-        statutory_reference_days: STATUTORY_PRORATION_REFERENCE_DAYS,
+        statutory_contribution_month: statutory?.contributionMonth ?? null,
+        statutory_basic: statutory?.basic ?? 0,
+        statutory_gross: statutory?.gross ?? 0,
       };
 
       inserts.push({

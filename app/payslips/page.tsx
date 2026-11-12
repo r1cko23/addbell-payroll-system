@@ -63,16 +63,13 @@ import { toast } from "sonner";
 import { format, addDays, getWeek, parseISO, startOfYear, endOfYear, startOfMonth, endOfMonth } from "date-fns";
 import {
   countWeeklyPaysInSemiMonth,
-  isFourthStatutoryWeeklyPay,
   isLastWeeklyPayOfSemiMonth,
   semiMonthlyPeriodIndex,
 } from "@/lib/weekly-statutory-deductions";
 import {
-  applyStatutoryProration,
-  fetchDistinctWorkDaysMonthToDate,
-  statutoryProrationFactorFromDays,
-  STATUTORY_PRORATION_REFERENCE_DAYS,
-} from "@/lib/statutory-proration";
+  fetchMonthAfterStatutory,
+  type MonthAfterStatutory,
+} from "@/lib/month-after-statutory";
 import { formatCurrency, generatePayslipNumber } from "@/utils/format";
 import {
   calculateSSS,
@@ -505,10 +502,9 @@ export default function PayslipsPage() {
     grossFromSavedOtherWeeksInSemiMonth: number;
     taxWithheldPriorExcludingCurrentInSemiMonth: number;
   } | null>(null);
-  /** Distinct work days (Manila) month-to-date through period end Tue — for statutory proration vs 26. */
-  const [mtdWorkDaysForStatutory, setMtdWorkDaysForStatutory] = useState<
-    number | null
-  >(null);
+  /** SSS / PhilHealth / Pag-IBIG for the previous contribution month (deducted on last cutoff of the month). */
+  const [monthAfterStatutory, setMonthAfterStatutory] =
+    useState<MonthAfterStatutory | null>(null);
   // Saved payslip for this employee + period (when exists, we display DB values and lock edits)
   const [savedPayslip, setSavedPayslip] = useState<{
     id: string;
@@ -722,7 +718,7 @@ export default function PayslipsPage() {
 
   useEffect(() => {
     if (!selectedEmployee?.id) {
-      setMtdWorkDaysForStatutory(null);
+      setMonthAfterStatutory(null);
       return;
     }
     const end = new Date(periodStart);
@@ -733,13 +729,16 @@ export default function PayslipsPage() {
       selectedEmployee.transferred_from_employee_id,
     ].filter(Boolean) as string[];
     let cancelled = false;
-    fetchDistinctWorkDaysMonthToDate(supabase, ids, end)
-      .then((n) => {
-        if (!cancelled) setMtdWorkDaysForStatutory(n);
+    fetchMonthAfterStatutory(supabase, ids, end)
+      .then((r) => {
+        if (!cancelled) setMonthAfterStatutory(r);
       })
-      .catch(() => {
+      .catch((e) => {
         if (!cancelled) {
-          setMtdWorkDaysForStatutory(STATUTORY_PRORATION_REFERENCE_DAYS);
+          setMonthAfterStatutory(null);
+          toast.error("Couldn't load last month's payslips for SSS / PhilHealth", {
+            description: e instanceof Error ? e.message : undefined,
+          });
         }
       });
     return () => {
@@ -1956,73 +1955,23 @@ export default function PayslipsPage() {
         );
       }
 
-      // Statutory (SSS, PhilHealth, Pag-IBIG) based on monthly salary only, not gross pay
+      // Rate × 26 monthly salary: 13th month only.
       const validMonthlySalary =
         monthlyBasicSalary && monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
 
-      const sssContribution = calculateSSS(validMonthlySalary);
-      const philhealthContribution = calculatePhilHealth(validMonthlySalary);
-      const pagibigContribution = calculatePagIBIG(validMonthlySalary);
-
-      let mtdWorkDaysForSave = 0;
-      let prorationFactorSave = 1;
-      try {
-        const clockIds = [
-          selectedEmployee.id,
-          selectedEmployee.transferred_from_employee_id,
-        ].filter(Boolean) as string[];
-        mtdWorkDaysForSave = await fetchDistinctWorkDaysMonthToDate(
-          supabase,
-          clockIds,
-          periodEndTuesday
-        );
-        prorationFactorSave = statutoryProrationFactorFromDays(
-          mtdWorkDaysForSave
-        );
-      } catch {
-        mtdWorkDaysForSave = STATUTORY_PRORATION_REFERENCE_DAYS;
-        prorationFactorSave = 1;
-      }
-
-      const takeStatutory = isFourthStatutoryWeeklyPay(periodEndTuesday);
-
-      // Full monthly employee shares on statutory week, × min(1, MTD work days / 26).
-      const sssRegularAmountAuto =
-        takeStatutory &&
-        validMonthlySalary > 0 &&
-        !isNaN(sssContribution?.regularEmployeeShare)
-          ? applyStatutoryProration(
-              Math.round(sssContribution.regularEmployeeShare * 100) / 100,
-              prorationFactorSave
-            )
-          : 0;
-      const sssWispAmountAuto =
-        takeStatutory &&
-        validMonthlySalary > 0 &&
-        (sssContribution?.wispEmployeeShare ?? 0) > 0
-          ? applyStatutoryProration(
-              Math.round((sssContribution.wispEmployeeShare ?? 0) * 100) / 100,
-              prorationFactorSave
-            )
-          : 0;
-      const philhealthAmountAuto =
-        takeStatutory &&
-        validMonthlySalary > 0 &&
-        !isNaN(philhealthContribution?.employeeShare)
-          ? applyStatutoryProration(
-              Math.round(philhealthContribution.employeeShare * 100) / 100,
-              prorationFactorSave
-            )
-          : 0;
-      const pagibigAmountAuto =
-        takeStatutory &&
-        validMonthlySalary > 0 &&
-        !isNaN(pagibigContribution?.employeeShare)
-          ? applyStatutoryProration(
-              Math.round(pagibigContribution.employeeShare * 100) / 100,
-              prorationFactorSave
-            )
-          : 0;
+      // SSS / PhilHealth / Pag-IBIG: previous contribution month's actual basic and gross,
+      // deducted on the last cutoff of the month (accountant's workbook). A failed load blocks the save.
+      const statutorySave = await fetchMonthAfterStatutory(
+        supabase,
+        [selectedEmployee.id, selectedEmployee.transferred_from_employee_id].filter(
+          Boolean
+        ) as string[],
+        periodEndTuesday
+      );
+      const sssRegularAmountAuto = statutorySave.sssReg;
+      const sssWispAmountAuto = statutorySave.sssWisp;
+      const philhealthAmountAuto = statutorySave.phil;
+      const pagibigAmountAuto = statutorySave.pagibig;
 
       const manualOtherDeductionTotal = otherDeductionRows.reduce(
         (s, r) => s + (parseFloat(r.amount) || 0),
@@ -2122,10 +2071,10 @@ export default function PayslipsPage() {
       deductionsBreakdown.sss_wisp = sssWispAmount; // WISP shown separately if applicable
       deductionsBreakdown.philhealth = philhealthAmount;
       deductionsBreakdown.pagibig = pagibigAmount;
-      deductionsBreakdown.statutory_mtd_work_days = mtdWorkDaysForSave;
-      deductionsBreakdown.statutory_proration_factor = prorationFactorSave;
-      deductionsBreakdown.statutory_reference_days =
-        STATUTORY_PRORATION_REFERENCE_DAYS;
+      deductionsBreakdown.statutory_contribution_month =
+        statutorySave.contributionMonth;
+      deductionsBreakdown.statutory_basic = statutorySave.basic;
+      deductionsBreakdown.statutory_gross = statutorySave.gross;
 
       // Generate payslip number
       const year = periodStart.getFullYear();
@@ -2948,49 +2897,12 @@ export default function PayslipsPage() {
     return 0;
   }, [selectedEmployee?.monthly_rate, selectedEmployee?.per_day, selectedEmployee?.rate_per_day]);
 
-  const statutoryProrationFactorPreview = useMemo(() => {
-    if (mtdWorkDaysForStatutory === null) return 1;
-    return statutoryProrationFactorFromDays(mtdWorkDaysForStatutory);
-  }, [mtdWorkDaysForStatutory]);
-
-  /** Full monthly SSS (regular + WISP), PhilHealth, Pag-IBIG — 4th weekly pay only; × min(1, MTD days / 26). */
+  /** Previous contribution month's SSS / PhilHealth / Pag-IBIG; non-zero only on the last cutoff of the month. */
   const weeklyStatutoryAuto = useMemo(() => {
-    if (monthlySalary <= 0 || !isFourthStatutoryWeeklyPay(periodEnd)) {
-      return { sssReg: 0, sssWisp: 0, phil: 0, pagibig: 0, total: 0 };
-    }
-    const sssCalc = calculateSSS(monthlySalary);
-    const phCalc = calculatePhilHealth(monthlySalary);
-    const piCalc = calculatePagIBIG(monthlySalary);
-    const f = statutoryProrationFactorPreview;
-    const sssReg = !isNaN(sssCalc.regularEmployeeShare)
-      ? applyStatutoryProration(
-          Math.round(sssCalc.regularEmployeeShare * 100) / 100,
-          f
-        )
-      : 0;
-    const sssWisp =
-      (sssCalc.wispEmployeeShare ?? 0) > 0
-        ? applyStatutoryProration(
-            Math.round((sssCalc.wispEmployeeShare ?? 0) * 100) / 100,
-            f
-          )
-        : 0;
-    const phil = !isNaN(phCalc.employeeShare)
-      ? applyStatutoryProration(
-          Math.round(phCalc.employeeShare * 100) / 100,
-          f
-        )
-      : 0;
-    const pagibig = !isNaN(piCalc.employeeShare)
-      ? applyStatutoryProration(
-          Math.round(piCalc.employeeShare * 100) / 100,
-          f
-        )
-      : 0;
-    const total =
-      Math.round((sssReg + sssWisp + phil + pagibig) * 100) / 100;
-    return { sssReg, sssWisp, phil, pagibig, total };
-  }, [monthlySalary, periodEnd, statutoryProrationFactorPreview]);
+    const r = monthAfterStatutory;
+    if (!r) return { sssReg: 0, sssWisp: 0, phil: 0, pagibig: 0, total: 0 };
+    return { sssReg: r.sssReg, sssWisp: r.sssWisp, phil: r.phil, pagibig: r.pagibig, total: r.total };
+  }, [monthAfterStatutory]);
 
   const weeklyStatutory = useMemo(() => {
     const sssReg =
@@ -3339,6 +3251,11 @@ export default function PayslipsPage() {
                         <H4 className="text-sm font-medium text-muted-foreground">
                           Government Contributions
                         </H4>
+                        <BodySmall className="text-xs text-muted-foreground">
+                          {monthAfterStatutory?.contributionMonth
+                            ? `${format(parseISO(`${monthAfterStatutory.contributionMonth}-01`), "MMMM yyyy")} contributions: PhilHealth on basic ${formatCurrency(monthAfterStatutory.basic)}, SSS on gross ${formatCurrency(monthAfterStatutory.gross)}.`
+                            : "Deducted on the last cutoff of the month, for the previous month."}
+                        </BodySmall>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 w-full">
                           {monthlySalary > 0 ? (
                             <>

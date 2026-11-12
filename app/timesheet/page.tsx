@@ -310,16 +310,19 @@ export default function TimesheetPage() {
     const month = filterMonth.getMonth();
     const firstOfMonth = new Date(year, month, 1);
     firstOfMonth.setHours(0, 0, 0, 0);
-    let start = new Date(firstOfMonth);
-    // Align to Wednesday
-    while (start.getDay() !== 3) {
-      start.setDate(start.getDate() - 1);
+    // A week belongs to the month its Tuesday (period end) falls in, like payroll and statutory months:
+    // September = Aug 26 – Sep 29, October = Sep 30 – Oct 27.
+    const firstTuesday = new Date(firstOfMonth);
+    while (firstTuesday.getDay() !== 2) {
+      firstTuesday.setDate(firstTuesday.getDate() + 1);
     }
+    let start = new Date(firstTuesday);
+    start.setDate(start.getDate() - 6);
     const endOfMonth = new Date(year, month + 1, 0);
     endOfMonth.setHours(0, 0, 0, 0);
     const options: { key: string; label: string; start: Date; end: Date }[] = [];
     let weekIndex = 1;
-    while (start <= endOfMonth) {
+    while (addDays(start, 6) <= endOfMonth) {
       const ws = new Date(start);
       const we = new Date(start);
       we.setDate(we.getDate() + 6);

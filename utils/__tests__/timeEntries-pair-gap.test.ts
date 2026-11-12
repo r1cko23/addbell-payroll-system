@@ -156,10 +156,33 @@ describe("bundy IN/OUT pair gap — Time Out button vs saved punch", () => {
       expect(timeOutButtonOn(punches)).toBe(false);
     });
 
-    test("auto-out 1ms past 24h does not pair", () => {
+    test("auto-out 1ms past 24h still pairs (IN edited earlier after auto-close)", () => {
       const punches = [
         punch("in1", "in", EARLY_BIRD_IN),
         autoOut("auto", AUTO_OUT_24H_PLUS_1MS),
+      ];
+      expect(timeOutButtonOn(punches)).toBe(false);
+    });
+
+    test("staff-edited IN 24h27m before its auto-out keeps the day (Carizza Nov 6)", () => {
+      const punches = [
+        punch("in-nov6", "in", "2026-11-06T04:52:00.000+08:00"),
+        autoOut("auto", "2026-11-07T05:19:00.000+08:00"),
+        punch("in-nov9", "in", "2026-11-09T06:44:00.000+08:00"),
+      ];
+      const sessions = punchesToSessions(punches, getDateInManilaDefault);
+      expect(sessions.map((s) => s.id)).toEqual(["in-nov6", "in-nov9"]);
+      expect(sessions[0].out_punch_id).toBe("auto");
+      const official = filterOfficialBundySessions(sessions, (s) =>
+        getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, punches)
+      );
+      expect(official.map((s) => s.id)).toContain("in-nov6");
+    });
+
+    test("employee Time Out past 23h still does not pair", () => {
+      const punches = [
+        punch("in1", "in", EARLY_BIRD_IN),
+        punch("out1", "out", AUTO_OUT_24H_PLUS_1MS),
       ];
       expect(timeOutButtonOn(punches)).toBe(true);
     });

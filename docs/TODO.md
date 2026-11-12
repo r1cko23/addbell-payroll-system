@@ -1,6 +1,6 @@
 # TODO
 
-The project's running to-do list. Work it top to bottom, one item at a time. When an item is done, move it to **Done** with the commit. When new work turns up, add it where it belongs by priority. Last updated 2026-11-07.
+The project's running to-do list. Work it top to bottom, one item at a time. When an item is done, move it to **Done** with the commit. When new work turns up, add it where it belongs by priority. Last updated 2026-11-12.
 
 Owner: **Claude** = code or SQL a session can do (production SQL still needs the user to run it in the Supabase SQL Editor, because `apply_migration` is blocked). **You** = needs a real login, a business decision, or HR.
 
@@ -15,6 +15,7 @@ Nothing waiting on Claude.
 ## Decisions for HR / payroll (You)
 
 11. One employee has no portal password and can't sign in until HR sets one.
+24. Carizza Leonardo (2024-008) has no real time-out for her Nov 6 shift (in 04:52; the 05:19 Nov 7 out is the system auto-close). She files a failure-to-log, or HR enters her actual time-out, before that cutoff is paid.
 12. Move the payroll backup files off this Mac's app storage to where HR keeps payroll records: `~/Library/Application Support/Claude/side-session-notes/local_3beff32f-aeb8-4128-b338-5c2a9b076aea/`.
 
 ## Later
@@ -23,6 +24,7 @@ Nothing waiting on Claude.
 
 ## Done
 
+- 2026-11-12 Shifts no longer vanish when staff move a clock-in earlier after the 23h auto clock-out: auto clock-outs now pair with their clock-in at any gap (`lib/timeEntries.ts`, `utils/__tests__/timeEntries-pair-gap.test.ts`). Carizza's Nov 6 shift shows again in attendance and payroll.
 - 2026-11-08 Sign-ups can no longer choose their role: `handle_new_user` always creates an `employee` profile (20261108150000, checked in production).
 - 2026-11-08 Settings → Add user, deactivate and delete work again: they used a `users` table that no longer exists; they now use `profiles` (the profile is deleted with the login). Add/edit offers only the roles `profiles_role_check` allows, including Admin Assistant, and the role is set on the profile, never from sign-up metadata (`lib/__tests__/users-create-route.test.ts`). The browser no longer logs the new user's password.
 - 2026-11-08 Admin assistant role (ebda9f0, 20261108140000) live for l.grace.nopia@gmail.com: Upper Management queue read-only, cheque upload and download, no approve/reject/return/cutoff moves/cheque delete, every other page redirects to Fund requests. Checked in production as her (rolled back): reads 660 requests and 418 cheques, updates 0 requests, no employee, payslip or PO module access.

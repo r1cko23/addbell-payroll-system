@@ -125,9 +125,6 @@ function calculateNightDiffHours(
  */
 const MAX_PAIR_GAP_MS = BUNDY_MAX_OPEN_SESSION_MS;
 
-/** Pair auto-outs up to 23h + buffer (matches BUNDY_MAX_OPEN_SESSION_HOURS). */
-const MAX_BUNDY_AUTO_PAIR_MS = 24 * 60 * 60 * 1000;
-
 export function isBundyAutoClockOutPunch(punch: TimeEntryPunch): boolean {
   const info = punch.device_info ?? "";
   return (
@@ -199,10 +196,8 @@ function canPairOutToIn(
   if (outMs <= inMs) return false;
   const gap = outMs - inMs;
   if (gap <= MAX_PAIR_GAP_MS) return true;
-  if (gap <= MAX_BUNDY_AUTO_PAIR_MS && isBundyAutoClockOutPunch(outPunch)) {
-    return true;
-  }
-  return false;
+  // Auto-out is written at IN + 23h for this IN; a gap past that means staff later moved the IN earlier.
+  return isBundyAutoClockOutPunch(outPunch);
 }
 
 /**
@@ -241,7 +236,7 @@ export function isSupersededInPunch(
  * Converts punch rows (ordered by punched_at asc) into sessions.
  * Pairs each IN with the first OUT that is strictly after the IN (skips orphan OUTs and
  * mistaken OUT-before-IN on the same wall-clock narrative). Caps pair duration at MAX_PAIR_GAP_MS
- * (23h open-session window; auto clock-out punches may land just after 23h, up to 24h).
+ * (23h open-session window; auto clock-out punches pair at any gap, since they always close their IN).
  * A second employee IN before any OUT supersedes the earlier IN (no open session).
  * Admin 7 AM pre-open rows are skipped when an early-bird IN already started the day.
  * Trailing IN without a valid OUT becomes one session with clock_out_time null.

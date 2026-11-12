@@ -57,6 +57,7 @@ import type { PayrollEntrySummary } from "@/lib/ph-payroll/payroll-entry-validat
 import { deriveAddbellCutoffHub } from "@/lib/payroll/addbell-cutoff-hub";
 import { CutoffStepper } from "@/components/payroll/CutoffStepper";
 import { CutoffGuide } from "@/components/payroll/CutoffGuide";
+import { YearEndPayoutPanel } from "@/components/payroll/YearEndPayoutPanel";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -196,7 +197,7 @@ export default function PayrollPage() {
   const [payrollValidation, setPayrollValidation] =
     useState<PayrollEntrySummary | null>(null);
   const [loadingValidation, setLoadingValidation] = useState(false);
-  const [hubTab, setHubTab] = useState<"hours" | "register" | "downloads">("hours");
+  const [hubTab, setHubTab] = useState<"hours" | "register" | "downloads" | "year-end">("hours");
   const [hoursIssue, setHoursIssue] = useState<"" | "missing_rate" | "zero_hours">("");
   const cutoffHub = useMemo(() => {
     const rows = payrollValidation?.rows ?? [];
@@ -859,13 +860,14 @@ export default function PayrollPage() {
           <Tabs
             value={hubTab}
             onValueChange={(value) =>
-              setHubTab(value as "hours" | "register" | "downloads")
+              setHubTab(value as "hours" | "register" | "downloads" | "year-end")
             }
           >
             <TabsList aria-label="Cutoff sections">
               <TabsTrigger value="hours">Hours</TabsTrigger>
               <TabsTrigger value="register">Register</TabsTrigger>
               <TabsTrigger value="downloads">Downloads</TabsTrigger>
+              {canAccessSalaryInfo && <TabsTrigger value="year-end">Year-end</TabsTrigger>}
             </TabsList>
             <TabsContent value="hours" id="cutoff-hours" className="space-y-3">
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -1198,6 +1200,11 @@ export default function PayrollPage() {
                 </HStack>
               </CardSection>
             </TabsContent>
+            {canAccessSalaryInfo && (
+              <TabsContent value="year-end" id="cutoff-year-end" className="space-y-3">
+                <YearEndPayoutPanel />
+              </TabsContent>
+            )}
           </Tabs>
 
           {printPayslip && printPayload && (

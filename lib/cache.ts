@@ -1,4 +1,13 @@
+import { headers } from "next/headers";
 import { getRedis } from "@/lib/redis";
+
+function requestAsksRevalidate(): boolean {
+  try {
+    return headers().get("x-cache-revalidate") === "1";
+  } catch {
+    return false; // called outside a request (cron, script)
+  }
+}
 
 /**
  * Upstash free tier (as of 2025+): 500K commands / month, 256 MB, 10 GB bandwidth.
@@ -77,7 +86,9 @@ export async function cachedJson<T>(
   options: CachedJsonOptions = {}
 ): Promise<{ data: T; cache: "HIT" | "MISS" | "BYPASS" }> {
   const useRedis = options.useRedis !== false;
-  const revalidate = options.revalidate === true;
+  // Browser force-refresh (after approve/reject) sends x-cache-revalidate; honor it on every
+  // cached route, or the refresh can return the pre-approve list from Redis.
+  const revalidate = options.revalidate ?? requestAsksRevalidate();
   const redis = useRedis ? getRedis() : null;
   if (!redis) {
     return { data: await loader(), cache: "BYPASS" };

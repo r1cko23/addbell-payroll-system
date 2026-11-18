@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -166,6 +166,11 @@ function otStatusBadgeClass(status: ViewerOtStatus): string {
   return approvalPendingStatusBadgeClass;
 }
 
+/** Zero rows updated: another approver (or an earlier click) already moved it off "pending". */
+const ALREADY_DECIDED = {
+  message: "This request was already decided or changed by someone else. Refresh to see its current status.",
+};
+
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -214,6 +219,8 @@ export default function OvertimeApprovalPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [actioningId, setActioningId] = useState<string | null>(null);
+  // State updates are async: a fast second click can start before the button disables.
+  const actingRef = useRef(false);
   const [selected, setSelected] = useState<OTRequest | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [employeeGroupNameByEmployeeId, setEmployeeGroupNameByEmployeeId] =
@@ -816,6 +823,16 @@ export default function OvertimeApprovalPage() {
   ]);
 
   const handleApprove = async (id: string) => {
+    if (actingRef.current) return;
+    actingRef.current = true;
+    try {
+      await handleApproveInner(id);
+    } finally {
+      actingRef.current = false;
+    }
+  };
+
+  const handleApproveInner = async (id: string) => {
     setActioningId(id);
     // Get request details for toast message
     const request = requests.find((r) => r.id === id);
@@ -879,9 +896,16 @@ export default function OvertimeApprovalPage() {
       .eq("status", "pending")
       .select("id");
     // Zero rows means another approver acted first; do not report success.
-    const finalError = updateError ?? (changedRows?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
+    const finalError = updateError ?? (changedRows?.length ? null : ALREADY_DECIDED);
 
-    if (finalError) {
+    if (finalError === ALREADY_DECIDED) {
+      toast.info("This request was already decided", {
+        description: "The list has been refreshed with its current status.",
+      });
+      await bustCache();
+      await refreshOtList({ force: true });
+      closeRequestModal();
+    } else if (finalError) {
       toast.error("Failed to approve overtime request", {
         description: finalError.message || "An error occurred while approving the request",
       });
@@ -903,6 +927,16 @@ export default function OvertimeApprovalPage() {
   };
 
   const handleReject = async (id: string) => {
+    if (actingRef.current) return;
+    actingRef.current = true;
+    try {
+      await handleRejectInner(id);
+    } finally {
+      actingRef.current = false;
+    }
+  };
+
+  const handleRejectInner = async (id: string) => {
     setActioningId(id);
     // Get request details for toast message
     const request = requests.find((r) => r.id === id);
@@ -964,9 +998,16 @@ export default function OvertimeApprovalPage() {
       .eq("status", "pending")
       .select("id");
     // Zero rows means another approver acted first; do not report success.
-    const finalError = updateError ?? (changedRows?.length ? null : { message: "This request was already decided or changed by someone else. Refresh to see its current status." });
+    const finalError = updateError ?? (changedRows?.length ? null : ALREADY_DECIDED);
 
-    if (finalError) {
+    if (finalError === ALREADY_DECIDED) {
+      toast.info("This request was already decided", {
+        description: "The list has been refreshed with its current status.",
+      });
+      await bustCache();
+      await refreshOtList({ force: true });
+      closeRequestModal();
+    } else if (finalError) {
       toast.error("Failed to reject overtime request", {
         description: finalError.message || "An error occurred while rejecting the request",
       });

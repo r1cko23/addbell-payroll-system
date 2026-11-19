@@ -179,6 +179,30 @@ describe("bundy IN/OUT pair gap — Time Out button vs saved punch", () => {
       expect(official.map((s) => s.id)).toContain("in-nov6");
     });
 
+    test("FTL IN before an earlier IN's auto-out keeps both days (Melanie Nov 12/13)", () => {
+      const punches = [
+        punch("in-nov12", "in", "2026-11-12T06:32:52.481+08:00"),
+        punch("ftl-in", "in", "2026-11-13T03:00:00.000+08:00"),
+        autoOut("auto", "2026-11-13T05:32:52.481+08:00"),
+        punch("ftl-out", "out", "2026-11-13T20:00:00.000+08:00"),
+      ];
+      const sessions = punchesToSessions(punches, getDateInManilaDefault);
+      expect(sessions.map((s) => [s.id, s.out_punch_id])).toEqual([
+        ["in-nov12", "auto"],
+        ["ftl-in", "ftl-out"],
+      ]);
+    });
+
+    test("double tap without Time Out: auto-out belongs to the later IN, earlier is dropped", () => {
+      const punches = [
+        punch("tap1", "in", "2026-09-16T06:29:00.000+08:00"),
+        punch("tap2", "in", "2026-09-16T07:19:00.000+08:00"),
+        autoOut("auto", "2026-09-17T06:19:00.000+08:00"),
+      ];
+      const sessions = punchesToSessions(punches, getDateInManilaDefault);
+      expect(sessions.map((s) => [s.id, s.out_punch_id])).toEqual([["tap2", "auto"]]);
+    });
+
     test("employee Time Out past 23h still does not pair", () => {
       const punches = [
         punch("in1", "in", EARLY_BIRD_IN),

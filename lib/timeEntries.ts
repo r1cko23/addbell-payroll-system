@@ -264,6 +264,20 @@ export function punchesToSessions(
     return null;
   };
 
+  // Auto-out is written at exactly IN + 23h, so it belongs to that IN even if a later IN
+  // (e.g. an approved FTL) was inserted before it; no other IN may take it.
+  const autoOutOwner = new Map<string, string>();
+  for (const o of sorted) {
+    if (o.punch_type !== "out" || !isBundyAutoClockOutPunch(o)) continue;
+    const outMs = new Date(o.punched_at).getTime();
+    const owner = sorted.find(
+      (q) =>
+        q.punch_type === "in" &&
+        Math.abs(outMs - new Date(q.punched_at).getTime() - MAX_PAIR_GAP_MS) <= 1000
+    );
+    if (owner) autoOutOwner.set(o.id, owner.id);
+  }
+
   const sessions: TimeEntrySession[] = [];
   let i = 0;
   while (i < sorted.length) {
@@ -283,6 +297,7 @@ export function punchesToSessions(
     let j = i + 1;
     let pairedOut: TimeEntryPunch | null = null;
     let supersededByLaterIn = false;
+    let pairedAcrossLaterIn = false;
     while (j < sorted.length) {
       const q = sorted[j];
       if (q.punch_type === "in") {
@@ -290,8 +305,19 @@ export function punchesToSessions(
           j++;
           continue;
         }
+        const ownAutoOut = sorted.find((o) => autoOutOwner.get(o.id) === p.id);
+        if (ownAutoOut) {
+          pairedOut = ownAutoOut;
+          pairedAcrossLaterIn = true;
+          break;
+        }
         supersededByLaterIn = true;
         break;
+      }
+      const owner = autoOutOwner.get(q.id);
+      if (owner && owner !== p.id) {
+        j++;
+        continue;
       }
       const outMs = new Date(q.punched_at).getTime();
       if (canPairOutToIn(clockInMs, outMs, q)) {
@@ -329,7 +355,7 @@ export function punchesToSessions(
         clock_out_device: pairedOut.device_info ?? null,
         source: p.source ?? null,
       });
-      i = j + 1;
+      i = pairedAcrossLaterIn ? i + 1 : j + 1;
     } else {
       sessions.push({
         id: p.id,
